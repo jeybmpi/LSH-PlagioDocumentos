@@ -91,3 +91,9 @@ Abre `https://TU-SITIO.vercel.app/api/health/db`. Hace una consulta real a Supab
 - «La tabla public.documents no existe»: ejecuta `supabase/schema.sql` en *SQL Editor*.
 - «Revisa SUPABASE_SERVICE_KEY»: usa la clave `service_role` (o la *secret key*) de *Project Settings > API*, no la `anon` ni la `publishable`.
 - «No se pudo conectar»: `SUPABASE_URL` debe ser solo `https://xxxx.supabase.co`.
+
+### Error «new row violates row-level security policy»
+
+La clave en `SUPABASE_SERVICE_KEY` es la anon/publishable. En *Project Settings > API Keys* copia la
+**service_role** (pestaña *Legacy*) o la **secret key** (`sb_secret_...`), reemplázala en Vercel y redespliega.
+`/api/health/db` muestra `key_role`: debe decir `service_role` o `secret`.

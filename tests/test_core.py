@@ -91,3 +91,17 @@ def test_errores_de_supabase_son_accionables(monkeypatch):
     r = TestClient(app).get("/api/documents")
     assert r.status_code == 502 and "schema.sql" in r.json()["detail"]
     monkeypatch.setattr(st, "_store", None)
+
+
+def test_key_role_sin_exponer_la_clave():
+    import base64, json
+    from lsh.store import key_role
+
+    def jwt(role):
+        enc = lambda d: base64.urlsafe_b64encode(json.dumps(d).encode()).decode().rstrip("=")
+        return f"{enc({'alg': 'HS256'})}.{enc({'role': role})}.firma"
+
+    assert key_role(jwt("anon")) == "anon"
+    assert key_role(jwt("service_role")) == "service_role"
+    assert key_role("sb_secret_abc") == "secret" and key_role("sb_publishable_abc") == "publishable"
+    assert key_role("basura") == "desconocido"

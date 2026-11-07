@@ -63,7 +63,13 @@ def health():
 @router.get("/health/db")
 def health_db():
     """Prueba real de la conexión: lista la tabla y devuelve cuántos textos hay."""
-    return {"ok": True, "documents": len(store.get_store().list())}
+    st = store.get_store()
+    out = {"ok": True, "documents": len(st.list()), "key_role": getattr(st, "role", "n/a")}
+    if out["key_role"] in ("anon", "publishable"):
+        out["ok"] = False
+        out["warning"] = ("La clave configurada es anon/publishable: puede leer pero no escribir por RLS. "
+                          "Usa la service_role o la secret key en SUPABASE_SERVICE_KEY.")
+    return out
 
 
 @router.get("/documents")

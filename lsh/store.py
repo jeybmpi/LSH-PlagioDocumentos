@@ -1,6 +1,8 @@
 """Almacén de documentos: Supabase (PostgREST) o memoria si no hay credenciales."""
 from __future__ import annotations
 
+import base64
+import json
 import os
 import uuid
 from datetime import datetime, timezone
@@ -16,6 +18,21 @@ class StoreError(Exception):
     """Error al hablar con la base de datos, con un mensaje accionable para la interfaz."""
 
 
+def key_role(key: str) -> str:
+    """Tipo de clave de Supabase, sin exponerla: service_role, secret, anon, publishable o desconocido."""
+    key = key.strip()
+    if key.startswith("sb_secret_"):
+        return "secret"
+    if key.startswith("sb_publishable_"):
+        return "publishable"
+    try:
+        payload = key.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        return str(json.loads(base64.urlsafe_b64decode(payload)).get("role", "desconocido"))
+    except Exception:
+        return "desconocido"
+
+
 def _explain(status: int, body: str) -> str:
     try:
         j = httpx.Response(status, content=body).json()
@@ -24,7 +41,10 @@ def _explain(status: int, body: str) -> str:
     except Exception:
         detail, code = body[:300], ""
     tip = ""
-    if status == 404 or code in ("PGRST205", "42P01"):
+    if "row-level security" in detail.lower():
+        tip = (" → La clave configurada está sujeta a RLS (es la anon/publishable). "
+               "Pon la service_role (o la secret key) en SUPABASE_SERVICE_KEY y redespliega.")
+    elif status == 404 or code in ("PGRST205", "42P01"):
         tip = " → La tabla public.documents no existe: ejecuta supabase/schema.sql en el SQL Editor de Supabase."
     elif status in (401, 403) or "JWT" in detail or "apikey" in detail.lower():
         tip = " → Revisa SUPABASE_SERVICE_KEY: debe ser la clave service_role (o la secret key), no la anon/publishable."
@@ -64,6 +84,7 @@ class SupabaseStore:
         root = url.strip().split("/rest/v1")[0].rstrip("/")
         self.base = f"{root}/rest/v1/{TABLE}"
         key = key.strip()
+        self.role = key_role(key)
         self.h = {"apikey": key, "Content-Type": "application/json"}
         if not key.startswith("sb_"):  # las claves nuevas (sb_secret_...) no son JWT: solo van en apikey
             self.h["Authorization"] = f"Bearer {key}"
