@@ -16,7 +16,7 @@ export function MyTexts({ docs, onChange }: Props) {
   const top = useRef<HTMLElement>(null);
 
   const dirty = title !== orig.title || text !== orig.text;
-  const valid = title.trim().length > 0 && text.trim().length >= 10;
+  const valid = text.trim().length >= 10;
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
   const reveal = () => setTimeout(() => top.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   const confirmLeave = () => !dirty || window.confirm("Tienes cambios sin guardar. ¿Descartarlos?");
@@ -41,7 +41,7 @@ export function MyTexts({ docs, onChange }: Props) {
     setBusy(true); setErr(""); setMsg("");
     try {
       const saved = openId === "new" ? await addDoc(title.trim(), text) : await updateDoc(openId, title.trim(), text);
-      setOpenId(saved.id); setTitle(title.trim()); setOrig({ title: title.trim(), text });
+      setOpenId(saved.id); setTitle(saved.title); setOrig({ title: saved.title, text });
       await onChange();
       setMsg("Cambios guardados");
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
@@ -68,7 +68,7 @@ export function MyTexts({ docs, onChange }: Props) {
             </div>
           </header>
           <div className="new">
-            <input value={title} onChange={(e) => { setTitle(e.target.value); setMsg(""); }} aria-label="Título" placeholder="Título del texto" maxLength={200} />
+            <input value={title} onChange={(e) => { setTitle(e.target.value); setMsg(""); }} aria-label="Título" placeholder="Título (opcional): sin título se guarda como «Texto sin título»" maxLength={200} />
             <textarea className="editor-text" value={text} onChange={(e) => { setText(e.target.value); setMsg(""); }} aria-label="Contenido" placeholder="Escribe o pega el texto aquí (mínimo 10 caracteres)" />
           </div>
           {msg && <p className="ok-msg" role="status">{msg}</p>}

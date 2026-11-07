@@ -23,7 +23,7 @@ async def store_error(_request, exc: StoreError):
 class AnalyzeIn(BaseModel):
     text: str | None = None
     doc_id: str | None = None
-    title: str = "Documento sin título"
+    title: str = ""
     k: int = Field(5, ge=2, le=12)
     b: int = Field(20, ge=1, le=60)
     r: int = Field(5, ge=1, le=12)
@@ -38,9 +38,26 @@ class EvalIn(BaseModel):
     threshold: float = Field(0.5, gt=0, le=1)
 
 
+GENERIC_TITLE = "Texto sin título"
+
+
 class DocIn(BaseModel):
-    title: str = Field(min_length=1, max_length=200)
+    title: str = Field("", max_length=200)  # opcional: si va vacío se asigna un título genérico
     content: str = Field(min_length=10)
+
+
+def _title_or_generic(title: str, exclude_id: str | None = None) -> str:
+    """Devuelve el título dado o uno genérico y único: «Texto sin título», «Texto sin título 2»…"""
+    title = title.strip()
+    if title:
+        return title
+    used = {d["title"] for d in store.get_store().list() if d["id"] != exclude_id}
+    if GENERIC_TITLE not in used:
+        return GENERIC_TITLE
+    n = 2
+    while f"{GENERIC_TITLE} {n}" in used:
+        n += 1
+    return f"{GENERIC_TITLE} {n}"
 
 
 def _check_n(b: int, r: int) -> None:
@@ -87,12 +104,12 @@ def get_document(doc_id: str):
 
 @router.post("/documents")
 def add_document(body: DocIn):
-    return _brief(store.get_store().add(body.title.strip(), body.content))
+    return _brief(store.get_store().add(_title_or_generic(body.title), body.content))
 
 
 @router.put("/documents/{doc_id}")
 def update_document(doc_id: str, body: DocIn):
-    d = store.get_store().update(doc_id, body.title.strip(), body.content)
+    d = store.get_store().update(doc_id, _title_or_generic(body.title, doc_id), body.content)
     if not d:
         raise HTTPException(404, "Documento no encontrado")
     return _brief(d)
@@ -113,7 +130,7 @@ def seed_documents():
 def analyze(body: AnalyzeIn):
     _check_n(body.b, body.r)
     s = store.get_store()
-    exclude, text, title = None, body.text, body.title
+    exclude, text, title = None, body.text, body.title.strip() or "Texto a comparar"
     if body.doc_id:
         d = s.get(body.doc_id)
         if not d:
@@ -123,7 +140,7 @@ def analyze(body: AnalyzeIn):
         raise HTTPException(422, "Falta el texto a analizar")
     result = pipeline.analyze(text, title, s.list(), body.k, body.b, body.r, body.threshold, exclude)
     if body.save and not body.doc_id:
-        result["saved"] = _brief(s.add(title, text))
+        result["saved"] = _brief(s.add(_title_or_generic(body.title), text))
     return result
 
 

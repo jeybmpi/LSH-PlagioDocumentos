@@ -12,7 +12,7 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [mode, setMode] = useState<"new" | "saved">("new");
   const [text, setText] = useState("");
-  const [title, setTitle] = useState("Texto a comparar");
+  const [title, setTitle] = useState("");
   const [save, setSave] = useState(false);
   const [s, setS] = useState<Settings>({ k: 5, b: 20, r: 5, threshold: 0.5 });
   const [res, setRes] = useState<Analysis | null>(null);
@@ -32,7 +32,7 @@ export default function App() {
   const run = async () => {
     setBusy(true); setErr("");
     try {
-      const body = mode === "saved" ? { ...s, doc_id: selected ?? undefined } : { ...s, text, title: title.trim() || "Texto a comparar", save };
+      const body = mode === "saved" ? { ...s, doc_id: selected ?? undefined } : { ...s, text, title: title.trim(), save };
       const out = await analyze(body);
       setRes(out); setTab("analysis");
       if (out.saved) await refresh();
@@ -90,7 +90,7 @@ export default function App() {
               <div className="mode-summary">
                 {mode === "new" ? (
                   <div className="new">
-                    <input value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Título del texto a comparar" maxLength={200} />
+                    <input value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Título del texto a comparar" placeholder="Título (opcional)" maxLength={200} />
                     <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder="Escribe o pega aquí el texto que quieres comparar contra el banco" />
                     <label className="chk"><input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} /> Guardar también en «Mis textos»</label>
                   </div>

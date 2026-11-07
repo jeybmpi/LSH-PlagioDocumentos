@@ -105,3 +105,19 @@ def test_key_role_sin_exponer_la_clave():
     assert key_role(jwt("service_role")) == "service_role"
     assert key_role("sb_secret_abc") == "secret" and key_role("sb_publishable_abc") == "publishable"
     assert key_role("basura") == "desconocido"
+
+
+def test_titulo_generico_al_guardar_sin_titulo():
+    c = TestClient(app)
+    texto = "Un texto cualquiera para guardar sin título alguno."
+    a = c.post("/api/documents", json={"title": "", "content": texto}).json()
+    b = c.post("/api/documents", json={"title": "   ", "content": texto + " más"}).json()
+    assert a["title"] == "Texto sin título" and b["title"] == "Texto sin título 2"
+    # al editar y dejar el título vacío, conserva su propio genérico sin renumerarse
+    r = c.put(f"/api/documents/{a['id']}", json={"title": "", "content": texto + " editado"}).json()
+    assert r["title"] == "Texto sin título"
+    # con título explícito se respeta
+    assert c.post("/api/documents", json={"title": "Mi ensayo", "content": texto}).json()["title"] == "Mi ensayo"
+    # guardar desde Comparar sin título también usa el genérico
+    res = c.post("/api/analyze", json={"text": texto + " otro", "title": "", "save": True}).json()
+    assert res["query"]["title"] == "Texto a comparar" and res["saved"]["title"].startswith("Texto sin título")
