@@ -53,3 +53,19 @@ def test_api_flujo():
     assert res["params"]["n"] == 100 and len(res["signature"]["values"]) == 100
     ev = c.post("/api/evaluate", json={}).json()
     assert ev["total_pairs"] == 120 and ev["candidate_pairs"] < ev["total_pairs"]
+
+
+def test_editar_texto_actualiza_banco_y_cache():
+    c = TestClient(app)
+    c.post("/api/documents/seed")
+    docs = c.get("/api/documents").json()
+    target = docs[0]
+    assert "preview" in target
+    original = c.get(f"/api/documents/{target['id']}").json()["content"]
+    # mismo largo, contenido distinto: la caché no debe devolver la firma vieja
+    cambiado = original[::-1]
+    r = c.put(f"/api/documents/{target['id']}", json={"title": "Editado", "content": cambiado})
+    assert r.status_code == 200 and r.json()["title"] == "Editado"
+    assert c.get(f"/api/documents/{target['id']}").json()["content"] == cambiado
+    assert c.put("/api/documents/no-existe", json={"title": "x", "content": "y" * 20}).status_code == 404
+    assert c.post("/api/extract").status_code == 404  # los PDF/archivos ya no se aceptan

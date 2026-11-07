@@ -22,7 +22,7 @@ class Prepared:
 
 
 def prepare(text: str, k: int, a, b, key: str | None = None) -> Prepared:
-    ck = (key, len(text), k, len(a)) if key else None
+    ck = (key, hash(text), k, len(a)) if key else None
     if ck and ck in _cache:
         return _cache[ck]
     norm = core.normalize(text)

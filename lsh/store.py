@@ -28,6 +28,12 @@ class MemoryStore:
         self.docs[d["id"]] = d
         return d
 
+    def update(self, doc_id: str, title: str, content: str) -> dict | None:
+        d = self.docs.get(doc_id)
+        if d:
+            d.update(title=title, content=content, char_count=len(content))
+        return d
+
     def delete(self, doc_id: str) -> None:
         self.docs.pop(doc_id, None)
 
@@ -53,6 +59,12 @@ class SupabaseStore:
     def add(self, title: str, content: str) -> dict:
         return self._req("POST", json={"title": title, "content": content, "char_count": len(content)},
                          prefer="return=representation")[0]
+
+    def update(self, doc_id: str, title: str, content: str) -> dict | None:
+        rows = self._req("PATCH", {"id": f"eq.{doc_id}"},
+                         json={"title": title, "content": content, "char_count": len(content)},
+                         prefer="return=representation")
+        return rows[0] if rows else None
 
     def delete(self, doc_id: str) -> None:
         self._req("DELETE", {"id": f"eq.{doc_id}"})

@@ -1,4 +1,5 @@
-export interface DocBrief { id: string; title: string; char_count: number; created_at: string }
+export interface DocBrief { id: string; title: string; char_count: number; created_at: string; preview: string }
+export interface Doc extends DocBrief { content: string }
 export interface Settings { k: number; b: number; r: number; threshold: number }
 export type Verdict = "TP" | "FP" | "FN" | "TN";
 

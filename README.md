@@ -23,6 +23,10 @@ falsos positivos y negativos.
 | 8. Curva en S | Curva 1 − (1 − sʳ)ᵇ con cada documento sobre ella; precisión y recall | `core.s_curve` |
 | 9. Plagio detectado | Pasajes compartidos resaltados en ambos textos | `core.shared_ranges` |
 
+La sección **Mis textos** lista los textos guardados como tarjetas; al hacer clic en una se abre el editor para cambiar el título y el contenido, con botón **Guardar** (`PUT /api/documents/{id}`). También permite crear textos nuevos y eliminarlos.
+
+En **Comparar** se escribe o pega el texto a revisar y se ajustan k, b, r y la similitud objetivo.
+
 La pestaña **Evaluación del banco** compara todos contra todos: LSH frente a fuerza bruta
 (pares, tiempo, precisión, recall y nube de pares sobre la curva teórica).
 
@@ -58,7 +62,7 @@ Pruebas: `python -m pytest -q`.
 
 ## Límites y notas
 
-- Archivos de hasta 2 MB (.txt, .md, .pdf con texto; los PDF escaneados no se leen).
+- Solo se aceptan textos escritos o pegados: no hay subida de archivos ni de PDF.
 - Las firmas se recalculan en cada petición (con caché en memoria): pensado para bancos de decenas o pocos cientos de documentos.
 - La evaluación del banco usa como máximo 150 documentos (11 175 pares).
 - b·r no puede superar 400 funciones hash.

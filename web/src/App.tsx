@@ -1,23 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { analyze, extract, listDocs } from "./api";
+import { useCallback, useEffect, useState } from "react";
+import { analyze, listDocs } from "./api";
 import { DocBank } from "./components/DocBank";
 import { EvalPanel } from "./components/EvalPanel";
+import { MyTexts } from "./components/MyTexts";
 import { Stepper } from "./components/Stepper";
 import type { Analysis, DocBrief, Settings } from "./types";
 
 export default function App() {
+  const [view, setView] = useState<"compare" | "texts">("compare");
   const [docs, setDocs] = useState<DocBrief[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [mode, setMode] = useState<"bank" | "new">("bank");
+  const [mode, setMode] = useState<"new" | "saved">("new");
   const [text, setText] = useState("");
-  const [title, setTitle] = useState("Documento nuevo");
+  const [title, setTitle] = useState("Texto a comparar");
   const [save, setSave] = useState(false);
   const [s, setS] = useState<Settings>({ k: 5, b: 20, r: 5, threshold: 0.5 });
   const [res, setRes] = useState<Analysis | null>(null);
   const [tab, setTab] = useState<"analysis" | "eval">("analysis");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const file = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
     const d = await listDocs();
@@ -29,15 +30,11 @@ export default function App() {
   const run = async () => {
     setBusy(true); setErr("");
     try {
-      const body = mode === "bank" ? { ...s, doc_id: selected ?? undefined } : { ...s, text, title, save };
+      const body = mode === "saved" ? { ...s, doc_id: selected ?? undefined } : { ...s, text, title: title.trim() || "Texto a comparar", save };
       const out = await analyze(body);
       setRes(out); setTab("analysis");
       if (out.saved) await refresh();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
-  };
-  const loadFile = async (f: File) => {
-    try { const x = await extract(f); setText(x.content); setTitle(x.title); setMode("new"); setErr(""); }
-    catch (e) { setErr((e as Error).message); }
   };
   const slider = (label: string, key: keyof Settings, min: number, max: number, step = 1) => (
     <label className="sl">
@@ -47,52 +44,77 @@ export default function App() {
     </label>
   );
   const t = Math.pow(1 / s.b, 1 / s.r);
-  const canRun = mode === "bank" ? !!selected : text.trim().length >= 10;
+  const canRun = mode === "saved" ? !!selected : text.trim().length >= 10;
 
   return (
-    <div className="app">
-      <header className="top">
-        <h1>Detector de plagio con LSH</h1>
-        <p>Shingling · Minhash · Bandas · Verificación</p>
-      </header>
-      <div className="layout">
-        <DocBank docs={docs} selected={selected} onSelect={(id) => { setSelected(id); setMode("bank"); }} onChange={refresh} />
-        <main>
-          <section className="panel form">
-            <div className="seg" role="tablist">
-              <button className={mode === "bank" ? "on" : ""} onClick={() => setMode("bank")}>Documento del banco</button>
-              <button className={mode === "new" ? "on" : ""} onClick={() => setMode("new")}>Texto o archivo nuevo</button>
-            </div>
-            {mode === "bank" ? (
-              <p className="note">Se compara «{docs.find((d) => d.id === selected)?.title ?? "—"}» contra el resto del banco.</p>
-            ) : (
-              <div className="new">
-                <input value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Título" />
-                <textarea rows={5} value={text} onChange={(e) => setText(e.target.value)} placeholder="Pega aquí el texto a revisar o carga un archivo .txt, .md o .pdf" />
-                <div className="bank-actions">
-                  <button onClick={() => file.current?.click()}>Cargar archivo</button>
-                  <label className="chk"><input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} /> Guardar en el banco</label>
-                  <input ref={file} type="file" accept=".txt,.md,.pdf" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) loadFile(f); e.target.value = ""; }} />
-                </div>
-              </div>
-            )}
-            <div className="sliders">
-              {slider("k (letras por shingle)", "k", 2, 12)}
-              {slider("b (bandas)", "b", 1, 60)}
-              {slider("r (filas por banda)", "r", 1, 12)}
-              {slider("Similitud objetivo", "threshold", 0.1, 1, 0.05)}
-            </div>
-            <p className="note">Firma de n = b·r = <b>{s.b * s.r}</b> funciones hash · umbral de LSH t ≈ (1/b)^(1/r) = <b>{t.toFixed(2)}</b></p>
-            <button className="primary big" onClick={run} disabled={busy || !canRun}>{busy ? "Analizando…" : "Analizar paso a paso"}</button>
-            {err && <p className="error">{err}</p>}
-          </section>
-          <div className="tabs">
-            <button className={tab === "analysis" ? "on" : ""} onClick={() => setTab("analysis")}>Análisis paso a paso</button>
-            <button className={tab === "eval" ? "on" : ""} onClick={() => setTab("eval")}>Evaluación del banco</button>
+    <div className="app-shell">
+      <header className="topbar">
+        <div className="eyebrow">LSH · análisis documental</div>
+        <div className="title-row">
+          <div>
+            <h1>Detector de plagio con LSH</h1>
+            <p>Shingling · Minhash · Bandas · Verificación</p>
           </div>
-          {tab === "analysis" ? (res ? <Stepper analysis={res} /> : <p className="note">Elige un documento y pulsa «Analizar paso a paso».</p>) : <EvalPanel settings={s} docCount={docs.length} />}
-        </main>
-      </div>
+          <div className="mini-stats" aria-label="Resumen del sistema">
+            <div className="stat-card"><span>Textos guardados</span><strong>{docs.length}</strong></div>
+            <div className="stat-card"><span>Umbral</span><strong>{s.threshold.toFixed(2)}</strong></div>
+          </div>
+        </div>
+        <nav className="view-nav" aria-label="Secciones">
+          <button className={view === "compare" ? "on" : ""} onClick={() => setView("compare")}>Comparar</button>
+          <button className={view === "texts" ? "on" : ""} onClick={() => setView("texts")}>Mis textos ({docs.length})</button>
+        </nav>
+      </header>
+
+      {view === "texts" ? (
+        <MyTexts docs={docs} onChange={refresh} />
+      ) : (
+        <div className="layout">
+          <DocBank docs={docs} selected={selected} onSelect={(id) => { setSelected(id); setMode("saved"); }} onChange={refresh} />
+          <main className="main-panel">
+            <section className="panel form-panel">
+              <div className="seg" role="tablist" aria-label="Texto a comparar">
+                <button className={mode === "new" ? "on" : ""} onClick={() => setMode("new")}>Escribir o pegar texto</button>
+                <button className={mode === "saved" ? "on" : ""} onClick={() => setMode("saved")}>Texto guardado</button>
+              </div>
+
+              <div className="mode-summary">
+                {mode === "new" ? (
+                  <div className="new">
+                    <input value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Título del texto a comparar" maxLength={200} />
+                    <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder="Escribe o pega aquí el texto que quieres comparar contra el banco" />
+                    <label className="chk"><input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} /> Guardar también en «Mis textos»</label>
+                  </div>
+                ) : (
+                  <p className="note">Se compara «{docs.find((d) => d.id === selected)?.title ?? "—"}» contra el resto del banco. Elige otro en la lista de la izquierda.</p>
+                )}
+              </div>
+
+              <div className="sliders">
+                {slider("k (letras por shingle)", "k", 2, 12)}
+                {slider("b (bandas)", "b", 1, 60)}
+                {slider("r (filas por banda)", "r", 1, 12)}
+                {slider("Similitud objetivo", "threshold", 0.1, 1, 0.05)}
+              </div>
+
+              <div className="formula-bar" aria-label="Métrica de firma LSH">
+                <span>Firma de n = <b>{s.b * s.r}</b> funciones hash</span>
+                <span>umbral t ≈ <b>{t.toFixed(2)}</b></span>
+              </div>
+
+              <button className="primary big" onClick={run} disabled={busy || !canRun}>{busy ? "Analizando…" : "Analizar paso a paso"}</button>
+              {err && <p className="error">{err}</p>}
+            </section>
+
+            <div className="tabs" role="tablist" aria-label="Vista de resultados">
+              <button className={tab === "analysis" ? "on" : ""} onClick={() => setTab("analysis")}>Análisis paso a paso</button>
+              <button className={tab === "eval" ? "on" : ""} onClick={() => setTab("eval")}>Evaluación del banco</button>
+            </div>
+
+            {tab === "analysis" ? (res ? <Stepper analysis={res} /> : <p className="note">Escribe o pega un texto y pulsa «Analizar paso a paso».</p>) : <EvalPanel settings={s} docCount={docs.length} />}
+          </main>
+        </div>
+      )}
     </div>
   );
 }

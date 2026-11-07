@@ -1,17 +1,15 @@
 """API FastAPI (Vercel Python Function). Toda la lógica vive en el paquete `lsh`."""
-import io
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, File, HTTPException, UploadFile  # noqa: E402
+from fastapi import FastAPI, HTTPException  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 from lsh import pipeline, store  # noqa: E402
 
 app = FastAPI(title="LSH · Detección de plagio")
-MAX_BYTES = 2_000_000
 
 
 class AnalyzeIn(BaseModel):
@@ -43,7 +41,9 @@ def _check_n(b: int, r: int) -> None:
 
 
 def _brief(d: dict) -> dict:
-    return {k: d[k] for k in ("id", "title", "char_count", "created_at")}
+    out = {k: d[k] for k in ("id", "title", "char_count", "created_at")}
+    out["preview"] = d.get("content", "")[:180]
+    return out
 
 
 @app.get("/api/health")
@@ -69,6 +69,14 @@ def add_document(body: DocIn):
     return _brief(store.get_store().add(body.title.strip(), body.content))
 
 
+@app.put("/api/documents/{doc_id}")
+def update_document(doc_id: str, body: DocIn):
+    d = store.get_store().update(doc_id, body.title.strip(), body.content)
+    if not d:
+        raise HTTPException(404, "Documento no encontrado")
+    return _brief(d)
+
+
 @app.delete("/api/documents/{doc_id}")
 def delete_document(doc_id: str):
     store.get_store().delete(doc_id)
@@ -78,24 +86,6 @@ def delete_document(doc_id: str):
 @app.post("/api/documents/seed")
 def seed_documents():
     return {"inserted": store.seed_if_empty()}
-
-
-@app.post("/api/extract")
-async def extract(file: UploadFile = File(...)):
-    """Devuelve el texto de un .txt, .md o .pdf sin guardarlo."""
-    raw = await file.read()
-    if len(raw) > MAX_BYTES:
-        raise HTTPException(413, "El archivo supera 2 MB")
-    name = (file.filename or "documento").strip()
-    if name.lower().endswith(".pdf"):
-        from pypdf import PdfReader
-
-        text = "\n".join((p.extract_text() or "") for p in PdfReader(io.BytesIO(raw)).pages)
-    else:
-        text = raw.decode("utf-8", errors="ignore")
-    if len(text.strip()) < 10:
-        raise HTTPException(422, "No se pudo extraer texto del archivo")
-    return {"title": name.rsplit(".", 1)[0], "content": text}
 
 
 @app.post("/api/analyze")
