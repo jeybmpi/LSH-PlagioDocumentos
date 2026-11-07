@@ -69,3 +69,10 @@ def test_editar_texto_actualiza_banco_y_cache():
     assert c.get(f"/api/documents/{target['id']}").json()["content"] == cambiado
     assert c.put("/api/documents/no-existe", json={"title": "x", "content": "y" * 20}).status_code == 404
     assert c.post("/api/extract").status_code == 404  # los PDF/archivos ya no se aceptan
+
+
+def test_rutas_con_y_sin_prefijo_api():
+    c = TestClient(app)
+    assert c.get("/api/health").json()["ok"] is True
+    assert c.get("/health").json()["ok"] is True
+    assert c.get("/documents").status_code == 200

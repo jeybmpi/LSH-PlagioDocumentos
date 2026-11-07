@@ -68,3 +68,18 @@ Pruebas: `python -m pytest -q`.
 - b·r no puede superar 400 funciones hash.
 - No hay autenticación: cualquiera con el enlace puede subir y borrar documentos. Antes de compartirlo, añade Supabase Auth o protege la API.
 - Los shingles son de caracteres. Los de palabras (con stop words, sección 3.2.4) quedan como extensión.
+
+## Diagnóstico si la API da 404 en Vercel
+
+Abre `https://TU-SITIO.vercel.app/api/health`:
+
+| Respuesta | Qué significa | Qué hacer |
+|---|---|---|
+| `{"ok":true,"store":"SupabaseStore"}` | La API y Supabase funcionan | Nada |
+| `{"ok":true,"store":"MemoryStore"}` | La API funciona pero sin Supabase | Agrega `SUPABASE_URL` y `SUPABASE_SERVICE_KEY` en *Settings > Environment Variables* y redespliega |
+| Página de Vercel «NOT_FOUND» | La función Python no se desplegó | En *Settings > General* deja **Root Directory** vacío (raíz del repositorio); en *Deployments > Functions* debe aparecer `api/index.py`; revisa el log de build |
+| `{"detail":"Not Found"}` | La función responde pero no reconoce la ruta | Ya cubierto: la API atiende rutas con y sin `/api` |
+| Error 500 | Falla al importar o consultar | Mira *Logs* de la función en Vercel |
+| 401 o página de login | *Deployment Protection* activa | Desactívala para este despliegue o usa el dominio de producción |
+
+Tras cambiar variables de entorno hay que redesplegar.

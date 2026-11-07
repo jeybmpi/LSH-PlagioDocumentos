@@ -4,12 +4,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, HTTPException  # noqa: E402
+from fastapi import APIRouter, FastAPI, HTTPException  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 from lsh import pipeline, store  # noqa: E402
 
 app = FastAPI(title="LSH · Detección de plagio")
+router = APIRouter()
 
 
 class AnalyzeIn(BaseModel):
@@ -46,17 +47,17 @@ def _brief(d: dict) -> dict:
     return out
 
 
-@app.get("/api/health")
+@router.get("/health")
 def health():
     return {"ok": True, "store": type(store.get_store()).__name__}
 
 
-@app.get("/api/documents")
+@router.get("/documents")
 def list_documents():
     return [_brief(d) for d in store.get_store().list()]
 
 
-@app.get("/api/documents/{doc_id}")
+@router.get("/documents/{doc_id}")
 def get_document(doc_id: str):
     d = store.get_store().get(doc_id)
     if not d:
@@ -64,12 +65,12 @@ def get_document(doc_id: str):
     return d
 
 
-@app.post("/api/documents")
+@router.post("/documents")
 def add_document(body: DocIn):
     return _brief(store.get_store().add(body.title.strip(), body.content))
 
 
-@app.put("/api/documents/{doc_id}")
+@router.put("/documents/{doc_id}")
 def update_document(doc_id: str, body: DocIn):
     d = store.get_store().update(doc_id, body.title.strip(), body.content)
     if not d:
@@ -77,18 +78,18 @@ def update_document(doc_id: str, body: DocIn):
     return _brief(d)
 
 
-@app.delete("/api/documents/{doc_id}")
+@router.delete("/documents/{doc_id}")
 def delete_document(doc_id: str):
     store.get_store().delete(doc_id)
     return {"ok": True}
 
 
-@app.post("/api/documents/seed")
+@router.post("/documents/seed")
 def seed_documents():
     return {"inserted": store.seed_if_empty()}
 
 
-@app.post("/api/analyze")
+@router.post("/analyze")
 def analyze(body: AnalyzeIn):
     _check_n(body.b, body.r)
     s = store.get_store()
@@ -106,10 +107,14 @@ def analyze(body: AnalyzeIn):
     return result
 
 
-@app.post("/api/evaluate")
+@router.post("/evaluate")
 def evaluate(body: EvalIn):
     _check_n(body.b, body.r)
     docs = store.get_store().list()
     if len(docs) < 2:
         raise HTTPException(422, "Se necesitan al menos 2 documentos en el banco")
     return pipeline.evaluate(docs, body.k, body.b, body.r, body.threshold)
+
+
+app.include_router(router, prefix="/api")
+app.include_router(router)  # por si la plataforma entrega la ruta sin el prefijo /api

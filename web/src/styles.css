@@ -323,3 +323,23 @@ button.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 4
   .text-card { background: linear-gradient(180deg, rgba(18,31,29,0.92), rgba(18,31,29,0.98)); }
   .view-nav button { background: rgba(255,255,255,0.04); }
 }
+
+/* ---- Contraste: superficies y campos con tokens (claro y oscuro) ---- */
+:root { --surface: #ffffff; --surface-2: #f7faf9; --input-bg: #ffffff; --input-fg: #0f1d1b; }
+@media (prefers-color-scheme: dark) {
+  :root { --surface: #12211f; --surface-2: #0e1b19; --input-bg: #0b1716; --input-fg: #ecf5f2; }
+}
+.panel, .bank, .text-card { background: var(--surface); }
+.stat-card { background: var(--surface-2); }
+.new input, .new textarea, .editor-text {
+  background: var(--input-bg);
+  color: var(--input-fg);
+  caret-color: var(--ac);
+  border: 1px solid var(--ln);
+}
+.new input::placeholder, .new textarea::placeholder { color: var(--mut); opacity: 1; }
+.new input:focus, .new textarea:focus { border-color: var(--ac); }
+.banner-warn {
+  margin: 0 0 14px; padding: 10px 14px; border-radius: 12px; font-weight: 600;
+  background: color-mix(in srgb, var(--warn) 22%, var(--surface)); border: 1px solid var(--warn); color: var(--fg);
+}

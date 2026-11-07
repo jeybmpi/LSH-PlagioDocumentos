@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { analyze, listDocs } from "./api";
+import { analyze, health, listDocs } from "./api";
 import { DocBank } from "./components/DocBank";
 import { EvalPanel } from "./components/EvalPanel";
 import { MyTexts } from "./components/MyTexts";
@@ -19,6 +19,7 @@ export default function App() {
   const [tab, setTab] = useState<"analysis" | "eval">("analysis");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [memory, setMemory] = useState(false);
 
   const refresh = useCallback(async () => {
     const d = await listDocs();
@@ -26,6 +27,7 @@ export default function App() {
     setSelected((cur) => (cur && d.some((x) => x.id === cur) ? cur : d[0]?.id ?? null));
   }, []);
   useEffect(() => { refresh().catch((e) => setErr((e as Error).message)); }, [refresh]);
+  useEffect(() => { health().then((h) => setMemory(h.store === "MemoryStore")).catch(() => undefined); }, []);
 
   const run = async () => {
     setBusy(true); setErr("");
@@ -65,6 +67,13 @@ export default function App() {
           <button className={view === "texts" ? "on" : ""} onClick={() => setView("texts")}>Mis textos ({docs.length})</button>
         </nav>
       </header>
+
+      {memory && (
+        <p className="banner-warn" role="alert">
+          La API no está conectada a Supabase: los textos se guardan solo en memoria y se pierden al reiniciar. Configura SUPABASE_URL y SUPABASE_SERVICE_KEY.
+        </p>
+      )}
+      {err && view === "texts" && <p className="error">{err}</p>}
 
       {view === "texts" ? (
         <MyTexts docs={docs} onChange={refresh} />
