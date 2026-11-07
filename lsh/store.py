@@ -12,6 +12,27 @@ from . import seed
 TABLE = "documents"
 
 
+class StoreError(Exception):
+    """Error al hablar con la base de datos, con un mensaje accionable para la interfaz."""
+
+
+def _explain(status: int, body: str) -> str:
+    try:
+        j = httpx.Response(status, content=body).json()
+        detail = " · ".join(str(j[k]) for k in ("message", "details", "hint") if j.get(k))
+        code = str(j.get("code", ""))
+    except Exception:
+        detail, code = body[:300], ""
+    tip = ""
+    if status == 404 or code in ("PGRST205", "42P01"):
+        tip = " → La tabla public.documents no existe: ejecuta supabase/schema.sql en el SQL Editor de Supabase."
+    elif status in (401, 403) or "JWT" in detail or "apikey" in detail.lower():
+        tip = " → Revisa SUPABASE_SERVICE_KEY: debe ser la clave service_role (o la secret key), no la anon/publishable."
+    elif status == 400 and "column" in detail.lower():
+        tip = " → Falta alguna columna: vuelve a ejecutar supabase/schema.sql."
+    return f"Supabase respondió {status}: {detail or 'sin detalle'}{tip}"
+
+
 class MemoryStore:
     def __init__(self) -> None:
         self.docs: dict[str, dict] = {}
@@ -40,13 +61,21 @@ class MemoryStore:
 
 class SupabaseStore:
     def __init__(self, url: str, key: str) -> None:
-        self.base = f"{url.rstrip('/')}/rest/v1/{TABLE}"
-        self.h = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+        root = url.strip().split("/rest/v1")[0].rstrip("/")
+        self.base = f"{root}/rest/v1/{TABLE}"
+        key = key.strip()
+        self.h = {"apikey": key, "Content-Type": "application/json"}
+        if not key.startswith("sb_"):  # las claves nuevas (sb_secret_...) no son JWT: solo van en apikey
+            self.h["Authorization"] = f"Bearer {key}"
 
     def _req(self, method: str, params: dict | None = None, json=None, prefer: str | None = None):
         headers = {**self.h, **({"Prefer": prefer} if prefer else {})}
-        r = httpx.request(method, self.base, params=params, json=json, headers=headers, timeout=20)
-        r.raise_for_status()
+        try:
+            r = httpx.request(method, self.base, params=params, json=json, headers=headers, timeout=20)
+        except httpx.HTTPError as e:
+            raise StoreError(f"No se pudo conectar con Supabase ({type(e).__name__}). Revisa SUPABASE_URL.") from e
+        if r.status_code >= 400:
+            raise StoreError(_explain(r.status_code, r.text))
         return r.json() if r.content else None
 
     def list(self) -> list[dict]:

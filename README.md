@@ -83,3 +83,11 @@ Abre `https://TU-SITIO.vercel.app/api/health`:
 | 401 o página de login | *Deployment Protection* activa | Desactívala para este despliegue o usa el dominio de producción |
 
 Tras cambiar variables de entorno hay que redesplegar.
+
+## Si `/api/documents` da error 500 o 502
+
+Abre `https://TU-SITIO.vercel.app/api/health/db`. Hace una consulta real a Supabase y muestra el motivo exacto:
+
+- «La tabla public.documents no existe»: ejecuta `supabase/schema.sql` en *SQL Editor*.
+- «Revisa SUPABASE_SERVICE_KEY»: usa la clave `service_role` (o la *secret key*) de *Project Settings > API*, no la `anon` ni la `publishable`.
+- «No se pudo conectar»: `SUPABASE_URL` debe ser solo `https://xxxx.supabase.co`.

@@ -5,12 +5,19 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import APIRouter, FastAPI, HTTPException  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 from lsh import pipeline, store  # noqa: E402
+from lsh.store import StoreError  # noqa: E402
 
 app = FastAPI(title="LSH · Detección de plagio")
 router = APIRouter()
+
+
+@app.exception_handler(StoreError)
+async def store_error(_request, exc: StoreError):
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
 
 
 class AnalyzeIn(BaseModel):
@@ -42,7 +49,8 @@ def _check_n(b: int, r: int) -> None:
 
 
 def _brief(d: dict) -> dict:
-    out = {k: d[k] for k in ("id", "title", "char_count", "created_at")}
+    out = {k: d.get(k) for k in ("id", "title", "char_count", "created_at")}
+    out["char_count"] = d.get("char_count") or len(d.get("content", ""))
     out["preview"] = d.get("content", "")[:180]
     return out
 
@@ -50,6 +58,12 @@ def _brief(d: dict) -> dict:
 @router.get("/health")
 def health():
     return {"ok": True, "store": type(store.get_store()).__name__}
+
+
+@router.get("/health/db")
+def health_db():
+    """Prueba real de la conexión: lista la tabla y devuelve cuántos textos hay."""
+    return {"ok": True, "documents": len(store.get_store().list())}
 
 
 @router.get("/documents")

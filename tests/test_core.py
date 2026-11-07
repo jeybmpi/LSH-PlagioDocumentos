@@ -76,3 +76,18 @@ def test_rutas_con_y_sin_prefijo_api():
     assert c.get("/api/health").json()["ok"] is True
     assert c.get("/health").json()["ok"] is True
     assert c.get("/documents").status_code == 200
+
+
+def test_errores_de_supabase_son_accionables(monkeypatch):
+    import httpx
+    from lsh import store as st
+
+    def fake(*a, **k):
+        return httpx.Response(404, json={"code": "PGRST205", "message": "Could not find the table 'public.documents'"})
+
+    monkeypatch.setattr(st.httpx, "request", fake)
+    monkeypatch.setattr(st, "_store", st.SupabaseStore("https://x.supabase.co/rest/v1/", "sb_secret_abc"))
+    assert "Authorization" not in st._store.h and st._store.base == "https://x.supabase.co/rest/v1/documents"
+    r = TestClient(app).get("/api/documents")
+    assert r.status_code == 502 and "schema.sql" in r.json()["detail"]
+    monkeypatch.setattr(st, "_store", None)
