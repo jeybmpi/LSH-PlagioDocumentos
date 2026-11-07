@@ -41,11 +41,14 @@ def _verdict(is_cand: bool, similar: bool) -> str:
 
 
 def analyze(text: str, title: str, docs: list[dict], k: int, b: int, r: int, t: float,
-            exclude_id: str | None = None) -> dict:
+            exclude_id: str | None = None, exclude_group: str | None = None) -> dict:
+    """`exclude_group`: si el texto analizado es un fragmento, sus hermanos del mismo contenedor se
+    ignoran (por el solape entre fragmentos vecinos, se «parecerían» a él sin ser plagio)."""
     n = b * r
     a, bb = core.hash_params(n)
     q = prepare(text, k, a, bb)
-    corpus = {d["id"]: (d, prepare(d["content"], k, a, bb, key=d["id"])) for d in docs if d["id"] != exclude_id}
+    corpus = {d["id"]: (d, prepare(d["content"], k, a, bb, key=d["id"])) for d in docs
+              if d["id"] != exclude_id and not (exclude_group and d.get("group_id") == exclude_group)}
 
     t0 = time.perf_counter()
     index = core.LSHIndex(b, r)
@@ -127,9 +130,19 @@ def analyze(text: str, title: str, docs: list[dict], k: int, b: int, r: int, t: 
     }
 
 
-def evaluate(docs: list[dict], k: int, b: int, r: int, t: float, cap: int = 150) -> dict:
+EVAL_CAP = 250  # antes 150; los libros fragmentados ocupan ~170 documentos
+
+
+def evaluate(docs: list[dict], k: int, b: int, r: int, t: float, cap: int = EVAL_CAP) -> dict:
     """Todos contra todos en el banco: LSH frente a fuerza bruta."""
+    total_in_bank = len(docs)
     docs = docs[:cap]
+    group = {d["id"]: d.get("group_id") for d in docs}
+
+    def same_group(x: str, y: str) -> bool:
+        # Los fragmentos de un mismo contenedor se solapan a propósito: no se comparan entre sí.
+        return group[x] is not None and group[x] == group[y]
+
     n = b * r
     a, bb = core.hash_params(n)
     prep = {d["id"]: prepare(d["content"], k, a, bb, key=d["id"]) for d in docs}
@@ -144,14 +157,20 @@ def evaluate(docs: list[dict], k: int, b: int, r: int, t: float, cap: int = 150)
         for members in bucket.values():
             for x in range(len(members)):
                 for y in range(x + 1, len(members)):
-                    cand.add(tuple(sorted((members[x], members[y]))))  # type: ignore[arg-type]
+                    if not same_group(members[x], members[y]):
+                        cand.add(tuple(sorted((members[x], members[y]))))  # type: ignore[arg-type]
     ms_lsh = (time.perf_counter() - t0) * 1000
 
     t0 = time.perf_counter()
     pairs, tp, fp, fn, tn = [], 0, 0, 0, 0
+    total = skipped = 0
     title = {d["id"]: d["title"] for d in docs}
     for x in range(len(ids)):
         for y in range(x + 1, len(ids)):
+            if same_group(ids[x], ids[y]):
+                skipped += 1
+                continue
+            total += 1
             s = core.jaccard(prep[ids[x]].shset, prep[ids[y]].shset)
             is_c = tuple(sorted((ids[x], ids[y]))) in cand
             v = _verdict(is_c, s >= t)
@@ -159,10 +178,10 @@ def evaluate(docs: list[dict], k: int, b: int, r: int, t: float, cap: int = 150)
             if is_c or s >= 0.05:
                 pairs.append({"a": title[ids[x]], "b": title[ids[y]], "s": round(s, 4), "candidate": is_c, "verdict": v})
     ms_brute = (time.perf_counter() - t0) * 1000
-    total = len(ids) * (len(ids) - 1) // 2
     return {
         "params": {"k": k, "n": n, "b": b, "r": r, "threshold_theory": round(core.threshold(b, r), 4), "target": t},
         "docs": len(ids), "total_pairs": total, "candidate_pairs": len(cand),
+        "skipped_same_group": skipped, "docs_in_bank": total_in_bank, "truncated": total_in_bank > len(ids),
         "tp": tp, "fp": fp, "fn": fn, "tn": tn,
         "precision": round(tp / (tp + fp), 4) if tp + fp else None,
         "recall": round(tp / (tp + fn), 4) if tp + fn else None,

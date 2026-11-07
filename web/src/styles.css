@@ -343,3 +343,16 @@ button.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 4
   margin: 0 0 14px; padding: 10px 14px; border-radius: 12px; font-weight: 600;
   background: color-mix(in srgb, var(--warn) 22%, var(--surface)); border: 1px solid var(--warn); color: var(--fg);
 }
+
+/* ---- Contenedores de textos largos ---- */
+.bank li.group { align-items: flex-start; border-color: var(--ln); background: var(--surface-2); }
+.bank li.group > details { flex: 1; min-width: 0; }
+.bank li.group > .del { margin-top: 6px; }
+.bank summary { cursor: pointer; padding: 9px 10px; border-radius: 10px; }
+.bank summary > span { font-weight: 600; }
+.bank summary > small { display: block; color: var(--mut); }
+.bank summary:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+.bank ul.frags { margin: 2px 0 8px 12px; padding-left: 8px; border-left: 2px solid var(--ln); }
+.text-card.group-card { border-style: dashed; border-color: var(--ac); }
+.group-panel .text-grid { margin-top: 4px; }
+.long-note { padding: 8px 12px; border-radius: 12px; background: color-mix(in srgb, var(--ac) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--ac) 30%, var(--ln)); color: var(--fg); }

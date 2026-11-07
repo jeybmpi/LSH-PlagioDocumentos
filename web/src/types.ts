@@ -1,4 +1,10 @@
-export interface DocBrief { id: string; title: string; char_count: number; created_at: string; preview: string }
+export interface DocBrief {
+  id: string; title: string; char_count: number; created_at: string; preview: string;
+  /** Solo los fragmentos de un texto largo: comparten group_id (el «contenedor»). */
+  group_id?: string | null; group_name?: string | null; frag_index?: number | null;
+}
+/** Resultado de guardar. Si `fragments` existe, el texto era largo: `id` y `group_id` son los del contenedor. */
+export interface SavedText extends DocBrief { fragments?: number }
 export interface Doc extends DocBrief { content: string }
 export interface Settings { k: number; b: number; r: number; threshold: number }
 export type Verdict = "TP" | "FP" | "FN" | "TN";
@@ -28,12 +34,16 @@ export interface Analysis {
     precision: number | null; recall: number | null; ms_build: number; ms_query: number; ms_brute: number;
   };
   curve: Curve;
-  saved?: DocBrief;
+  saved?: SavedText;
 }
 export interface Evaluation {
   params: Analysis["params"]; docs: number; total_pairs: number; candidate_pairs: number;
   tp: number; fp: number; fn: number; tn: number; precision: number | null; recall: number | null;
   ms_lsh: number; ms_brute: number;
+  /** Pares de fragmentos del mismo contenedor, que no se comparan entre sí. */
+  skipped_same_group: number;
+  /** Documentos que hay en el banco; si es mayor que `docs`, la evaluación se recortó. */
+  docs_in_bank: number; truncated: boolean;
   pairs: { a: string; b: string; s: number; candidate: boolean; verdict: Verdict }[];
   curve: Curve;
 }

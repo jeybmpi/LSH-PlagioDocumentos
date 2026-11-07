@@ -8,7 +8,7 @@ from fastapi import APIRouter, FastAPI, HTTPException  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
-from lsh import pipeline, store  # noqa: E402
+from lsh import bank, pipeline, store  # noqa: E402
 from lsh.store import StoreError  # noqa: E402
 
 app = FastAPI(title="LSH · Detección de plagio")
@@ -18,6 +18,11 @@ router = APIRouter()
 @app.exception_handler(StoreError)
 async def store_error(_request, exc: StoreError):
     return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+
+@app.exception_handler(bank.TextTooLong)
+async def text_too_long(_request, exc: bank.TextTooLong):
+    return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
 class AnalyzeIn(BaseModel):
@@ -51,7 +56,8 @@ def _title_or_generic(title: str, exclude_id: str | None = None) -> str:
     title = title.strip()
     if title:
         return title
-    used = {d["title"] for d in store.get_store().list() if d["id"] != exclude_id}
+    docs = store.get_store().list()
+    used = {d["title"] for d in docs if d["id"] != exclude_id} | {d["group_name"] for d in docs if d.get("group_name")}
     if GENERIC_TITLE not in used:
         return GENERIC_TITLE
     n = 2
@@ -65,11 +71,7 @@ def _check_n(b: int, r: int) -> None:
         raise HTTPException(422, "b·r no puede superar 400 funciones hash")
 
 
-def _brief(d: dict) -> dict:
-    out = {k: d.get(k) for k in ("id", "title", "char_count", "created_at")}
-    out["char_count"] = d.get("char_count") or len(d.get("content", ""))
-    out["preview"] = d.get("content", "")[:180]
-    return out
+_brief = bank.brief
 
 
 @router.get("/health")
@@ -104,7 +106,8 @@ def get_document(doc_id: str):
 
 @router.post("/documents")
 def add_document(body: DocIn):
-    return _brief(store.get_store().add(_title_or_generic(body.title), body.content))
+    """Un texto corto se guarda tal cual; uno largo se divide en fragmentos dentro de un contenedor."""
+    return bank.save_text(store.get_store(), _title_or_generic(body.title), body.content)
 
 
 @router.put("/documents/{doc_id}")
@@ -121,6 +124,12 @@ def delete_document(doc_id: str):
     return {"ok": True}
 
 
+@router.delete("/groups/{group_id}")
+def delete_group(group_id: str):
+    """Elimina un contenedor completo (todos sus fragmentos)."""
+    return {"ok": True, "deleted": store.get_store().delete_group(group_id)}
+
+
 @router.post("/documents/seed")
 def seed_documents():
     return {"inserted": store.seed_if_empty()}
@@ -130,17 +139,17 @@ def seed_documents():
 def analyze(body: AnalyzeIn):
     _check_n(body.b, body.r)
     s = store.get_store()
-    exclude, text, title = None, body.text, body.title.strip() or "Texto a comparar"
+    exclude, exclude_group, text, title = None, None, body.text, body.title.strip() or "Texto a comparar"
     if body.doc_id:
         d = s.get(body.doc_id)
         if not d:
             raise HTTPException(404, "Documento no encontrado")
-        exclude, text, title = d["id"], d["content"], d["title"]
+        exclude, exclude_group, text, title = d["id"], d.get("group_id"), d["content"], d["title"]
     if not text or len(text.strip()) < 10:
         raise HTTPException(422, "Falta el texto a analizar")
-    result = pipeline.analyze(text, title, s.list(), body.k, body.b, body.r, body.threshold, exclude)
+    result = pipeline.analyze(text, title, s.list(), body.k, body.b, body.r, body.threshold, exclude, exclude_group)
     if body.save and not body.doc_id:
-        result["saved"] = _brief(s.add(_title_or_generic(body.title), text))
+        result["saved"] = bank.save_text(s, _title_or_generic(body.title), text)
     return result
 
 

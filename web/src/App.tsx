@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { analyze, health, listDocs } from "./api";
 import { DocBank } from "./components/DocBank";
 import { EvalPanel } from "./components/EvalPanel";
+import { LONG_THRESHOLD, groupDocs } from "./groups";
 import { MyTexts } from "./components/MyTexts";
 import { Stepper } from "./components/Stepper";
 import type { Analysis, DocBrief, Settings } from "./types";
@@ -46,6 +47,9 @@ export default function App() {
     </label>
   );
   const t = Math.pow(1 / s.b, 1 / s.r);
+  const items = groupDocs(docs);
+  const sel = docs.find((d) => d.id === selected);
+  const longText = mode === "new" && text.trim().length > LONG_THRESHOLD;
   const canRun = mode === "saved" ? !!selected : text.trim().length >= 10;
 
   return (
@@ -58,13 +62,14 @@ export default function App() {
             <p>Shingling · Minhash · Bandas · Verificación</p>
           </div>
           <div className="mini-stats" aria-label="Resumen del sistema">
-            <div className="stat-card"><span>Textos guardados</span><strong>{docs.length}</strong></div>
+            <div className="stat-card"><span>Textos guardados</span><strong>{items.length}</strong></div>
+            {items.length !== docs.length && <div className="stat-card"><span>Documentos en el banco</span><strong>{docs.length}</strong></div>}
             <div className="stat-card"><span>Umbral</span><strong>{s.threshold.toFixed(2)}</strong></div>
           </div>
         </div>
         <nav className="view-nav" aria-label="Secciones">
           <button className={view === "compare" ? "on" : ""} onClick={() => setView("compare")}>Comparar</button>
-          <button className={view === "texts" ? "on" : ""} onClick={() => setView("texts")}>Mis textos ({docs.length})</button>
+          <button className={view === "texts" ? "on" : ""} onClick={() => setView("texts")}>Mis textos ({items.length})</button>
         </nav>
       </header>
 
@@ -93,9 +98,16 @@ export default function App() {
                     <input value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Título del texto a comparar" placeholder="Título (opcional)" maxLength={200} />
                     <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder="Escribe o pega aquí el texto que quieres comparar contra el banco" />
                     <label className="chk"><input type="checkbox" checked={save} onChange={(e) => setSave(e.target.checked)} /> Guardar también en «Mis textos»</label>
+                    {longText && (
+                      <p className="note long-note" role="status">
+                        Texto largo ({text.trim().length.toLocaleString("es")} caracteres). Los textos del banco miden ~700 caracteres y Jaccard baja
+                        cuando uno es mucho mayor que el otro: para detectar un pasaje sospechoso, pega solo el pasaje.
+                        {save && " Al guardarlo se dividirá en fragmentos dentro de un contenedor."}
+                      </p>
+                    )}
                   </div>
                 ) : (
-                  <p className="note">Se compara «{docs.find((d) => d.id === selected)?.title ?? "—"}» contra el resto del banco. Elige otro en la lista de la izquierda.</p>
+                  <p className="note">Se compara «{docs.find((d) => d.id === selected)?.title ?? "—"}» contra el resto del banco{sel?.group_id ? ` (sin contar los demás fragmentos de «${sel.group_name}»)` : ""}. Elige otro en la lista de la izquierda.</p>
                 )}
               </div>
 

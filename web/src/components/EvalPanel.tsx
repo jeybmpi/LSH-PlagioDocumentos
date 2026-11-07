@@ -23,9 +23,14 @@ export function EvalPanel({ settings, docCount }: { settings: Settings; docCount
         <div><h3>Evaluación del banco completo</h3><small>Todos contra todos: LSH frente a fuerza bruta ({docCount} documentos)</small></div>
         <div className="ctl"><button className="primary" onClick={run} disabled={busy || docCount < 2}>{busy ? "Evaluando…" : "Evaluar banco"}</button></div>
       </header>
-      {err && <p className="error">{err}</p>}
+      {err && <p className="error" role="alert">{err}</p>}
       {ev && (
         <div className="body">
+          {ev.truncated && (
+            <p className="banner-warn" role="status">
+              Solo se evaluaron los {ev.docs} documentos más recientes de {ev.docs_in_bank} que hay en el banco.
+            </p>
+          )}
           <div className="metrics row4">
             <div className="m"><b>{ev.total_pairs}</b><span>pares posibles</span></div>
             <div className="m"><b>{ev.candidate_pairs}</b><span>pares candidatos</span></div>
@@ -41,6 +46,9 @@ export function EvalPanel({ settings, docCount }: { settings: Settings; docCount
             <div className="fbar cand" style={{ width: `${Math.max((ev.candidate_pairs / Math.max(ev.total_pairs, 1)) * 100, 6)}%` }}>{ev.candidate_pairs}</div>
           </div>
           <Chart curve={ev.curve} target={ev.params.target} dots={dots} />
+          {ev.skipped_same_group > 0 && (
+            <p className="legend">No se compararon {ev.skipped_same_group.toLocaleString("es")} pares de fragmentos del mismo contenedor: se solapan a propósito y aparecerían como plagio entre sí.</p>
+          )}
           <p className="legend">Arriba, pares que LSH marcó candidatos; abajo, los descartados. Su posición horizontal es el Jaccard real: la nube sigue la curva en S teórica.</p>
         </div>
       )}

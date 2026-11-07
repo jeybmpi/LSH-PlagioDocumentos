@@ -63,11 +63,23 @@ class MemoryStore:
     def get(self, doc_id: str) -> dict | None:
         return self.docs.get(doc_id)
 
-    def add(self, title: str, content: str) -> dict:
+    def add(self, title: str, content: str, group_id: str | None = None, group_name: str | None = None,
+            frag_index: int | None = None) -> dict:
         d = {"id": str(uuid.uuid4()), "title": title, "content": content, "char_count": len(content),
-             "created_at": datetime.now(timezone.utc).isoformat()}
+             "created_at": datetime.now(timezone.utc).isoformat(),
+             "group_id": group_id, "group_name": group_name, "frag_index": frag_index}
         self.docs[d["id"]] = d
         return d
+
+    def add_many(self, rows: list[dict]) -> list[dict]:
+        return [self.add(r["title"], r["content"], r.get("group_id"), r.get("group_name"), r.get("frag_index"))
+                for r in rows]
+
+    def delete_group(self, group_id: str) -> int:
+        ids = [i for i, d in self.docs.items() if d.get("group_id") == group_id]
+        for i in ids:
+            del self.docs[i]
+        return len(ids)
 
     def update(self, doc_id: str, title: str, content: str) -> dict | None:
         d = self.docs.get(doc_id)
@@ -100,15 +112,31 @@ class SupabaseStore:
         return r.json() if r.content else None
 
     def list(self) -> list[dict]:
-        return self._req("GET", {"select": "id,title,content,char_count,created_at", "order": "created_at.desc"})
+        # select=* para que funcione también si aún no se ejecutó la migración de los contenedores
+        return self._req("GET", {"select": "*", "order": "created_at.desc"})
 
     def get(self, doc_id: str) -> dict | None:
         rows = self._req("GET", {"select": "*", "id": f"eq.{doc_id}"})
         return rows[0] if rows else None
 
-    def add(self, title: str, content: str) -> dict:
-        return self._req("POST", json={"title": title, "content": content, "char_count": len(content)},
-                         prefer="return=representation")[0]
+    def add(self, title: str, content: str, group_id: str | None = None, group_name: str | None = None,
+            frag_index: int | None = None) -> dict:
+        row = {"title": title, "content": content, "char_count": len(content)}
+        if group_id:  # solo se envían las columnas nuevas cuando hacen falta
+            row.update(group_id=group_id, group_name=group_name, frag_index=frag_index)
+        return self._req("POST", json=row, prefer="return=representation")[0]
+
+    def add_many(self, rows: list[dict]) -> list[dict]:
+        """Inserción masiva (una petición por cada 100 filas) para no hacer un viaje por fragmento."""
+        out: list[dict] = []
+        for i in range(0, len(rows), 100):
+            batch = [{**r, "char_count": len(r["content"])} for r in rows[i : i + 100]]
+            out += self._req("POST", json=batch, prefer="return=representation")
+        return out
+
+    def delete_group(self, group_id: str) -> int:
+        rows = self._req("DELETE", {"group_id": f"eq.{group_id}", "select": "id"}, prefer="return=representation")
+        return len(rows or [])
 
     def update(self, doc_id: str, title: str, content: str) -> dict | None:
         rows = self._req("PATCH", {"id": f"eq.{doc_id}"},

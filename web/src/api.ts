@@ -1,4 +1,4 @@
-import type { Analysis, Doc, DocBrief, Evaluation, Settings } from "./types";
+import type { Analysis, Doc, DocBrief, Evaluation, SavedText, Settings } from "./types";
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 
@@ -20,11 +20,12 @@ const json = (body: unknown): RequestInit => ({
 
 export const listDocs = () => req<DocBrief[]>("/documents");
 export const seedDocs = () => req<{ inserted: number }>("/documents/seed", { method: "POST" });
-export const addDoc = (title: string, content: string) => req<DocBrief>("/documents", json({ title, content }));
+export const addDoc = (title: string, content: string) => req<SavedText>("/documents", json({ title, content }));
 export const getDoc = (id: string) => req<Doc>(`/documents/${id}`);
 export const updateDoc = (id: string, title: string, content: string) =>
   req<DocBrief>(`/documents/${id}`, { ...json({ title, content }), method: "PUT" });
 export const deleteDoc = (id: string) => req<{ ok: boolean }>(`/documents/${id}`, { method: "DELETE" });
+export const deleteGroup = (id: string) => req<{ ok: boolean; deleted: number }>(`/groups/${id}`, { method: "DELETE" });
 export const analyze = (p: Settings & { text?: string; doc_id?: string; title?: string; save?: boolean }) =>
   req<Analysis>("/analyze", json(p));
 export const evaluate = (s: Settings) => req<Evaluation>("/evaluate", json(s));

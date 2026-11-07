@@ -25,6 +25,16 @@ falsos positivos y negativos.
 
 La sección **Mis textos** lista los textos guardados como tarjetas; al hacer clic en una se abre el editor para cambiar el título y el contenido, con botón **Guardar** (`PUT /api/documents/{id}`). También permite crear textos nuevos y eliminarlos.
 
+### Textos largos: contenedores de fragmentos
+
+Jaccard penaliza la diferencia de tamaño: un pasaje de 560 caracteres copiado de un libro de 82 000 da J ≈ 1,5 %, aunque esté copiado al 100 %. Por eso, al guardar un texto de más de 1 500 caracteres (en **Mis textos** o con «Guardar también» en **Comparar**) se divide automáticamente en **fragmentos de ~700 caracteres** dentro de un **contenedor** con el nombre que se le dé (por ejemplo «Libro 1»). El pipeline LSH no cambia: es preprocesamiento del banco.
+
+- Los cortes se hacen en límite de oración y los fragmentos vecinos **se solapan 300 caracteres**, para que un pasaje copiado justo en un corte no se parta (en el peor caso medido, el solape de 300 detecta 12 de 14 pasajes frente a 4 de 14 con 150 y 0 de 14 sin solape).
+- En el banco y en **Mis textos** el contenedor se muestra como una sola entrada desplegable; se puede abrir, editar o eliminar cada fragmento, o eliminar el contenedor entero (`DELETE /api/groups/{id}`).
+- Los fragmentos del mismo contenedor **no se comparan entre sí** (por el solape se parecerían sin ser plagio): ni al analizar uno de ellos ni en la evaluación del banco.
+- Un texto genera como máximo 300 fragmentos (~200 000 caracteres). Los textos ya guardados no se vuelven a fragmentar al editarlos.
+- Si ya tenías la tabla creada, vuelve a ejecutar `supabase/schema.sql`: añade las columnas `group_id`, `group_name` y `frag_index` sin perder datos (las instrucciones son idempotentes).
+
 En **Comparar** se escribe o pega el texto a revisar y se ajustan k, b, r y la similitud objetivo.
 
 La pestaña **Evaluación del banco** compara todos contra todos: LSH frente a fuerza bruta
@@ -64,7 +74,7 @@ Pruebas: `python -m pytest -q`.
 
 - Solo se aceptan textos escritos o pegados: no hay subida de archivos ni de PDF.
 - Las firmas se recalculan en cada petición (con caché en memoria): pensado para bancos de decenas o pocos cientos de documentos.
-- La evaluación del banco usa como máximo 150 documentos (11 175 pares).
+- La evaluación del banco usa como máximo 250 documentos (`EVAL_CAP` en `lsh/pipeline.py`); si el banco es mayor, la pantalla avisa de que se recortó. Los pares del mismo contenedor no cuentan.
 - b·r no puede superar 400 funciones hash.
 - No hay autenticación: cualquiera con el enlace puede subir y borrar documentos. Antes de compartirlo, añade Supabase Auth o protege la API.
 - Los shingles son de caracteres. Los de palabras (con stop words, sección 3.2.4) quedan como extensión.
