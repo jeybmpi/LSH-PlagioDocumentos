@@ -94,6 +94,17 @@ def analyze(text: str, title: str, docs: list[dict], k: int, b: int, r: int, t: 
             "ranges_doc": [s for s in core.shared_ranges(p.norm, shared, k) if s[0] < TEXT_CAP],
         }
 
+    advice = None
+    if rows:
+        top = rows[0]
+        needs = top["p_theory"] < 0.9
+        sug = core.params_for_detection(top["exact"]) if needs and top["exact"] > 0 else None
+        if sug and (sug["b"], sug["r"]) == (b, r):
+            sug = None
+        advice = {"s": top["exact"], "title": top["title"], "p_now": top["p_theory"],
+                  "detected": top["is_candidate"], "b": b, "r": r, "noise": core.NOISE_DEFAULT,
+                  "needs_change": needs, "suggestion": sug}
+
     bands = []
     for i in range(b):
         ids = index.buckets[i].get(keys[i], [])
@@ -119,6 +130,7 @@ def analyze(text: str, title: str, docs: list[dict], k: int, b: int, r: int, t: 
         "bands": bands,
         "candidates": rows,
         "best": best,
+        "advice": advice,
         "evaluation": {
             "total_docs": len(rows), "candidates": sum(1 for x in rows if x["is_candidate"]),
             "brute_comparisons": len(rows), **cnt,

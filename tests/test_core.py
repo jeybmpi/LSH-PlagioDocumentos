@@ -121,3 +121,40 @@ def test_titulo_generico_al_guardar_sin_titulo():
     # guardar desde Comparar sin título también usa el genérico
     res = c.post("/api/analyze", json={"text": texto + " otro", "title": "", "save": True}).json()
     assert res["query"]["title"] == "Texto a comparar" and res["saved"]["title"].startswith("Texto sin título")
+
+
+def test_calculadora_de_umbral():
+    from lsh import core
+    o = core.suggest_params(0.3)
+    rec = [x for x in o if x.get("recommended")][0]
+    assert (rec["b"], rec["r"]) == (37, 3) and abs(rec["t"] - 0.3) < 0.01
+    assert [x for x in core.suggest_params(0.5) if x.get("recommended")][0]["r"] == 5
+    assert all(x["b"] <= 60 and x["n"] <= 400 for x in core.suggest_params(0.2))
+    r = TestClient(app).get("/api/tune?threshold=0.3").json()
+    assert r["options"] and r["options"][0]["recommended"]
+    assert TestClient(app).get("/api/tune?threshold=0.99").status_code == 422
+
+
+def test_ajuste_para_detectar_una_similitud_concreta():
+    from lsh import core
+    sug = core.params_for_detection(0.29)
+    assert sug and sug["p_detect"] >= 0.9 and sug["n"] <= 400
+    # entre las que cumplen, ninguna otra tiene menos ruido
+    assert all(core.p_candidate(0.08, b, r) >= sug["p_noise"] - 1e-4  # p_noise viene redondeado a 4 decimales
+               for r in range(1, 13) for b in range(1, 61)
+               if b * r <= 400 and core.p_candidate(0.29, b, r) >= 0.9)
+    assert core.params_for_detection(0.01) is None  # con b <= 60 es imposible
+
+
+def test_analyze_incluye_consejo_con_la_probabilidad_del_mejor_par():
+    docs = [dict(id=str(i), **d) for i, d in enumerate(seed.build_samples())]
+    r = pipeline.analyze(docs[0]["content"], "q", docs[1:], 5, 20, 5, 0.5)
+    adv = r["advice"]
+    assert adv["p_now"] == r["candidates"][0]["p_theory"] and adv["detected"] == r["candidates"][0]["is_candidate"]
+    # un pasaje corto frente a textos de ~700 caracteres: la similitud real es baja
+    pasaje = docs[1]["content"][:200]
+    r2 = pipeline.analyze(pasaje, "p", docs[1:], 5, 20, 5, 0.5)
+    adv2 = r2["advice"]
+    assert adv2["needs_change"] == (adv2["p_now"] < 0.9)
+    if adv2["suggestion"]:
+        assert adv2["suggestion"]["p_detect"] >= 0.9

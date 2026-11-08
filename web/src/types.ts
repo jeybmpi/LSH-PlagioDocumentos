@@ -18,6 +18,16 @@ export interface Best {
   bands_equal: number[]; shared_count: number; norm_query: string; norm_doc: string;
   ranges_query: number[][]; ranges_doc: number[][];
 }
+export interface TuneOption {
+  b: number; r: number; n: number; t: number; p_noise: number; p_threshold: number;
+  high: number; p_high: number; recommended?: boolean;
+}
+export interface Tune { threshold: number; noise: number; options: TuneOption[] }
+export interface Advice {
+  s: number; title: string; p_now: number; detected: boolean; b: number; r: number; noise: number;
+  needs_change: boolean;
+  suggestion: { b: number; r: number; n: number; p_detect: number; p_noise: number } | null;
+}
 export interface Curve { points: number[][]; threshold: number }
 export interface Analysis {
   params: { k: number; n: number; b: number; r: number; threshold_theory: number; target: number };
@@ -28,6 +38,7 @@ export interface Analysis {
   bands: { index: number; rows: number[]; key: string; docs: string[] }[];
   candidates: Candidate[];
   best: Best | null;
+  advice: Advice | null;
   evaluation: {
     total_docs: number; candidates: number; brute_comparisons: number;
     TP: number; FP: number; FN: number; TN: number;

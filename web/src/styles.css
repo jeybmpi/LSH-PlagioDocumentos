@@ -356,3 +356,21 @@ button.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 4
 .text-card.group-card { border-style: dashed; border-color: var(--ac); }
 .group-panel .text-grid { margin-top: 4px; }
 .long-note { padding: 8px 12px; border-radius: 12px; background: color-mix(in srgb, var(--ac) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--ac) 30%, var(--ln)); color: var(--fg); }
+
+/* ---- Modos, calculadora de umbral y consejo de probabilidad ---- */
+.presets { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0 0; }
+.presets-label { color: var(--mut); font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+.presets button { border-radius: 999px; padding: 7px 16px; font-weight: 600; }
+.presets button.on { background: var(--ac); border-color: var(--ac); color: #fff; }
+.presets-custom { font-size: 13px; color: var(--mut); border: 1px dashed var(--ln); border-radius: 999px; padding: 4px 12px; }
+details.tune { margin: 10px 0; border: 1px solid var(--ln); border-radius: 12px; padding: 8px 14px; background: var(--surface-2); }
+details.tune summary { cursor: pointer; font-weight: 700; padding: 4px 0; }
+details.tune[open] summary { margin-bottom: 8px; }
+.tune-scroll { overflow-x: auto; }
+.tbl tr.rec td { background: color-mix(in srgb, var(--ok) 14%, transparent); font-weight: 600; }
+.advice { border: 1px solid var(--ln); border-left-width: 6px; border-radius: 12px; padding: 10px 14px; margin: 0 0 14px; background: var(--surface-2); }
+.advice h4 { margin: 0 0 6px; }
+.advice p { margin: 4px 0; }
+.advice.good { border-left-color: var(--ok); }
+.advice.warn { border-left-color: var(--warn); }
+.advice.bad { border-left-color: var(--bad); }

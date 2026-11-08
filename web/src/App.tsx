@@ -5,7 +5,15 @@ import { EvalPanel } from "./components/EvalPanel";
 import { LONG_THRESHOLD, groupDocs } from "./groups";
 import { MyTexts } from "./components/MyTexts";
 import { Stepper } from "./components/Stepper";
+import { TunePanel } from "./components/TunePanel";
 import type { Analysis, DocBrief, Settings } from "./types";
+
+const PRESETS: { id: string; label: string; hint: string; values: Settings }[] = [
+  { id: "full", label: "Documento completo", values: { k: 5, b: 20, r: 5, threshold: 0.5 },
+    hint: "Compara textos de tamaño parecido que casi coinciden. Umbral de LSH ≈ 0.55: solo marca pares muy similares." },
+  { id: "passage", label: "Pasaje en texto largo", values: { k: 5, b: 40, r: 3, threshold: 0.3 },
+    hint: "Un pasaje copiado dentro de un texto más grande da una similitud baja (a menudo 0.2–0.4). Umbral ≈ 0.29: más sensible, con algo más de ruido que se descarta al verificar." },
+];
 
 export default function App() {
   const [view, setView] = useState<"compare" | "texts">("compare");
@@ -21,6 +29,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [memory, setMemory] = useState(false);
+  const [notice, setNotice] = useState("");
 
   const refresh = useCallback(async () => {
     const d = await listDocs();
@@ -42,11 +51,16 @@ export default function App() {
   const slider = (label: string, key: keyof Settings, min: number, max: number, step = 1) => (
     <label className="sl">
       <span>{label}</span>
-      <input type="range" min={min} max={max} step={step} value={s[key]} onChange={(e) => setS({ ...s, [key]: Number(e.target.value) })} />
+      <input type="range" min={min} max={max} step={step} value={s[key]} onChange={(e) => { setS({ ...s, [key]: Number(e.target.value) }); setNotice(""); }} />
       <b>{s[key]}</b>
     </label>
   );
   const t = Math.pow(1 / s.b, 1 / s.r);
+  const active = PRESETS.find((p) => p.values.k === s.k && p.values.b === s.b && p.values.r === s.r && p.values.threshold === s.threshold);
+  const applyBR = (b: number, r: number) => {
+    setS((prev) => ({ ...prev, b, r }));
+    setNotice(`Se aplicó b = ${b}, r = ${r}. Pulsa «Analizar paso a paso» para ver el resultado.`);
+  };
   const items = groupDocs(docs);
   const sel = docs.find((d) => d.id === selected);
   const longText = mode === "new" && text.trim().length > LONG_THRESHOLD;
@@ -111,6 +125,16 @@ export default function App() {
                 )}
               </div>
 
+              <div className="presets" role="group" aria-label="Modo de comparación">
+                <span className="presets-label">Modo</span>
+                {PRESETS.map((p) => (
+                  <button key={p.id} className={active?.id === p.id ? "on" : ""} aria-pressed={active?.id === p.id}
+                    onClick={() => { setS(p.values); setNotice(""); }}>{p.label}</button>
+                ))}
+                {!active && <span className="presets-custom">Personalizado</span>}
+              </div>
+              <p className="note">{active ? active.hint : "Valores personalizados: ajusta los controles o usa la calculadora de umbral."}</p>
+
               <div className="sliders">
                 {slider("k (letras por shingle)", "k", 2, 12)}
                 {slider("b (bandas)", "b", 1, 60)}
@@ -123,6 +147,15 @@ export default function App() {
                 <span>umbral t ≈ <b>{t.toFixed(2)}</b></span>
               </div>
 
+              <details className="tune">
+                <summary>Calculadora de umbral: ¿qué b y r necesito?</summary>
+                <TunePanel initial={s.threshold} onApply={(b, r, th) => {
+                  setS((prev) => ({ ...prev, b, r, threshold: Math.max(0.1, th) }));
+                  setNotice(`Se aplicó b = ${b}, r = ${r} y similitud objetivo ${Math.max(0.1, th).toFixed(2)}. Pulsa «Analizar paso a paso».`);
+                }} />
+              </details>
+              {notice && <p className="ok-msg" role="status">{notice}</p>}
+
               <button className="primary big" onClick={run} disabled={busy || !canRun}>{busy ? "Analizando…" : "Analizar paso a paso"}</button>
               {err && <p className="error">{err}</p>}
             </section>
@@ -132,7 +165,7 @@ export default function App() {
               <button className={tab === "eval" ? "on" : ""} onClick={() => setTab("eval")}>Evaluación del banco</button>
             </div>
 
-            {tab === "analysis" ? (res ? <Stepper analysis={res} /> : <p className="note">Escribe o pega un texto y pulsa «Analizar paso a paso».</p>) : <EvalPanel settings={s} docCount={docs.length} />}
+            {tab === "analysis" ? (res ? <Stepper analysis={res} onApply={applyBR} /> : <p className="note">Escribe o pega un texto y pulsa «Analizar paso a paso».</p>) : <EvalPanel settings={s} docCount={docs.length} />}
           </main>
         </div>
       )}

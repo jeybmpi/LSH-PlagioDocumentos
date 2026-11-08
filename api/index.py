@@ -4,11 +4,11 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import APIRouter, FastAPI, HTTPException  # noqa: E402
+from fastapi import APIRouter, FastAPI, HTTPException, Query  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
-from lsh import bank, pipeline, store  # noqa: E402
+from lsh import core, bank, pipeline, store  # noqa: E402
 from lsh.store import StoreError  # noqa: E402
 
 app = FastAPI(title="LSH · Detección de plagio")
@@ -133,6 +133,12 @@ def delete_group(group_id: str):
 @router.post("/documents/seed")
 def seed_documents():
     return {"inserted": store.seed_if_empty()}
+
+
+@router.get("/tune")
+def tune(threshold: float = Query(0.3, ge=0.05, le=0.95), noise: float = Query(core.NOISE_DEFAULT, ge=0, le=0.5)):
+    """Calculadora: dado el umbral de similitud que se quiere, propone combinaciones (b, r)."""
+    return {"threshold": threshold, "noise": noise, "options": core.suggest_params(threshold, noise)}
 
 
 @router.post("/analyze")

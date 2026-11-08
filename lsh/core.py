@@ -127,3 +127,59 @@ def shared_ranges(norm: str, shared: set[str], k: int) -> list[list[int]]:
             else:
                 spans.append([i, i + k])
     return spans
+
+
+# ---------- Ajuste guiado de b y r ----------
+NOISE_DEFAULT = 0.08  # estimación del parecido casual entre textos sin relación (depende de k y del tamaño)
+
+
+def suggest_params(t: float, noise: float = NOISE_DEFAULT, max_b: int = 60, max_r: int = 12,
+                   max_n: int = 400, tol: float = 0.08) -> list[dict]:
+    """Combinaciones (b, r) cuyo umbral (1/b)^(1/r) queda cerca de t.
+
+    Como t = (1/b)^(1/r), para cada r se toma b = t^(-r). Con r mayor la curva en S es más
+    empinada (separa mejor), pero exige más bandas; por eso se limita b y n = b·r.
+    """
+    hi = min(0.99, t + 0.2)
+    opts: list[dict] = []
+    for r in range(1, max_r + 1):
+        b = max(1, round(t ** -r))
+        if b > max_b or b * r > max_n:
+            continue
+        tr = threshold(b, r)
+        if abs(tr - t) > tol:
+            continue
+        opts.append({
+            "b": b, "r": r, "n": b * r, "t": round(tr, 3),
+            "p_noise": round(p_candidate(noise, b, r), 4),
+            "p_threshold": round(p_candidate(t, b, r), 4),
+            "high": round(hi, 2), "p_high": round(p_candidate(hi, b, r), 4),
+        })
+    opts.sort(key=lambda o: (round(abs(o["t"] - t), 2), -o["r"]))
+    if opts:
+        opts[0]["recommended"] = True
+    return opts
+
+
+def params_for_detection(s: float, target_p: float = 0.9, noise: float = NOISE_DEFAULT,
+                         max_b: int = 60, max_r: int = 12, max_n: int = 400) -> dict | None:
+    """(b, r) que detecta pares de similitud s con probabilidad >= target_p y menos ruido.
+
+    Para cada r, el menor b que cumple minimiza el ruido (P crece con b). Devuelve None si con
+    los límites de b y r no se puede alcanzar target_p.
+    """
+    best = None
+    for r in range(1, max_r + 1):
+        for b in range(1, max_b + 1):
+            if b * r > max_n:
+                break
+            if p_candidate(s, b, r) >= target_p:
+                key = (p_candidate(noise, b, r), b * r)
+                if best is None or key < best[0]:
+                    best = (key, b, r)
+                break
+    if best is None:
+        return None
+    _, b, r = best
+    return {"b": b, "r": r, "n": b * r, "p_detect": round(p_candidate(s, b, r), 4),
+            "p_noise": round(p_candidate(noise, b, r), 4)}

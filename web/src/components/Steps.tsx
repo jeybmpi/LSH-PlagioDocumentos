@@ -20,6 +20,43 @@ function useReady() {
   return r;
 }
 
+type Apply = (b: number, r: number) => void;
+const pc = (x: number) => (x >= 0.9995 ? "100%" : x < 0.0005 ? "0%" : `${(x * 100).toFixed(x < 0.1 ? 1 : 0)}%`);
+
+/** Probabilidad de que la mejor coincidencia fuera candidata con los b y r usados. */
+export function AdviceBox({ a, onApply }: { a: Analysis; onApply?: Apply }) {
+  const v = a.advice;
+  if (!v) return null;
+  const t = a.params.threshold_theory;
+  const ok = v.detected && !v.needs_change;
+  return (
+    <div className={`advice ${ok ? "good" : v.detected ? "warn" : "bad"}`} role="note">
+      <h4>Probabilidad de ser candidato de tu mejor coincidencia</h4>
+      <p>
+        «{v.title}» tiene un Jaccard real de <b>{v.s.toFixed(2)}</b>. Con b = {v.b} y r = {v.r} (umbral t ≈ {t.toFixed(2)}),
+        la curva en S le da una probabilidad de <b>{pc(v.p_now)}</b> de ser candidata.{" "}
+        {ok && "LSH la detectó."}
+        {v.detected && v.needs_change && "LSH la detectó, pero con esa probabilidad pudo escaparse."}
+        {!v.detected && "LSH no la marcó: es un falso negativo. El parecido existe, pero queda por debajo del umbral de la curva."}
+      </p>
+      {v.needs_change && v.suggestion && (
+        <p>
+          Para detectar pares como este con al menos 90% de probabilidad usa <b>b = {v.suggestion.b}, r = {v.suggestion.r}</b>{" "}
+          (n = {v.suggestion.n}). A cambio, dos textos sin relación (similitud ≈ {v.noise}) serían candidatos con probabilidad {pc(v.suggestion.p_noise)}:
+          esos falsos positivos se descartan al verificar.{" "}
+          {onApply && <button className="primary" onClick={() => onApply(v.suggestion!.b, v.suggestion!.r)}>Usar estos valores</button>}
+        </p>
+      )}
+      {v.needs_change && !v.suggestion && (
+        <p>
+          Con b ≤ 60 no se puede llegar a 90% para una similitud de {v.s.toFixed(2)}: es demasiado baja frente al parecido casual entre textos.
+          Prueba con un fragmento de tamaño similar al del banco, o mide también la contención.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function StepDocument({ a }: { a: Analysis }) {
   const n = a.normalize;
   return (
@@ -152,7 +189,7 @@ export function StepBuckets({ a }: { a: Analysis }) {
   );
 }
 
-export function StepVerify({ a }: { a: Analysis }) {
+export function StepVerify({ a, onApply }: { a: Analysis; onApply?: Apply }) {
   const ready = useReady();
   const t = a.params.target;
   const rows = a.candidates.slice(0, 12);
@@ -161,6 +198,7 @@ export function StepVerify({ a }: { a: Analysis }) {
   );
   return (
     <>
+      <AdviceBox a={a} onApply={onApply} />
       <table className="tbl">
         <thead><tr><th>Documento</th><th>Jaccard real</th><th>Estimado (firma)</th><th>P(cand.)</th><th>Resultado</th></tr></thead>
         <tbody>
@@ -180,13 +218,14 @@ export function StepVerify({ a }: { a: Analysis }) {
   );
 }
 
-export function StepCurve({ a }: { a: Analysis }) {
+export function StepCurve({ a, onApply }: { a: Analysis; onApply?: Apply }) {
   const e = a.evaluation;
   const col = { TP: "#1a9e72", FP: "#d23b3b", FN: "#e0952a", TN: "#8a928e" } as const;
   const dots: Dot[] = a.candidates.map((c) => ({
     x: c.exact, y: c.p_theory, color: col[c.verdict], label: `${c.title}: s=${c.exact}, P=${c.p_theory} (${c.verdict})`,
   }));
   return (
+    <>
     <div className="two">
       <Chart curve={a.curve} target={a.params.target} dots={dots} />
       <div className="metrics">
@@ -198,6 +237,8 @@ export function StepCurve({ a }: { a: Analysis }) {
         <p className="legend">Cada punto es un documento del banco sobre la curva teórica 1 − (1 − sʳ)ᵇ.</p>
       </div>
     </div>
+    <AdviceBox a={a} onApply={onApply} />
+    </>
   );
 }
 

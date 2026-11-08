@@ -1,4 +1,4 @@
-import type { Analysis, Doc, DocBrief, Evaluation, SavedText, Settings } from "./types";
+import type { Tune, Analysis, Doc, DocBrief, Evaluation, SavedText, Settings } from "./types";
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 
@@ -31,3 +31,5 @@ export const analyze = (p: Settings & { text?: string; doc_id?: string; title?: 
 export const evaluate = (s: Settings) => req<Evaluation>("/evaluate", json(s));
 
 export const health = () => req<{ ok: boolean; store: string }>("/health");
+
+export const tune = (threshold: number) => req<Tune>(`/tune?threshold=${threshold}`);

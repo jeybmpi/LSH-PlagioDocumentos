@@ -107,3 +107,9 @@ Abre `https://TU-SITIO.vercel.app/api/health/db`. Hace una consulta real a Supab
 La clave en `SUPABASE_SERVICE_KEY` es la anon/publishable. En *Project Settings > API Keys* copia la
 **service_role** (pestaña *Legacy*) o la **secret key** (`sb_secret_...`), reemplázala en Vercel y redespliega.
 `/api/health/db` muestra `key_role`: debe decir `service_role` o `secret`.
+
+## Ajuste guiado de b y r
+
+- **Modos:** «Documento completo» (k=5, b=20, r=5, objetivo 0.5) y «Pasaje en texto largo» (k=5, b=40, r=3, objetivo 0.3). Al mover un control, el modo pasa a «Personalizado».
+- **Calculadora de umbral** (`GET /api/tune?threshold=0.3`): dado el umbral que se quiere, propone combinaciones (b, r) con su umbral real, el ruido (probabilidad de que textos sin relación sean candidatos) y la probabilidad de detectar pares cercanos al umbral. El ruido usa una estimación de 0.08 para el parecido casual; depende de k y del tamaño de los textos.
+- **Consejo tras analizar:** en los pasos 7 y 8, la probabilidad de ser candidato de la mejor coincidencia con los b y r usados y, si es menor a 90%, la combinación que la detectaría con menos ruido (`core.params_for_detection`).
