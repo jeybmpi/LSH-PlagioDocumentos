@@ -57,16 +57,71 @@ export function AdviceBox({ a, onApply }: { a: Analysis; onApply?: Apply }) {
   );
 }
 
+/** Hace visibles los espacios y saltos de línea; cada carácter se cambia por otro, así los índices no se mueven. */
+const showCh = (s: string) => s.replace(/ /g, "·").replace(/\n/g, "↵").replace(/\t/g, "⇥");
+
+function Segs({ text, marks, cls }: { text: string; marks: number[][]; cls: string }) {
+  const out: JSX.Element[] = [];
+  let pos = 0;
+  marks.forEach(([s, e], i) => {
+    if (s > pos) out.push(<span key={`a${i}`}>{showCh(text.slice(pos, s))}</span>);
+    out.push(<span key={`m${i}`} className={cls}>{showCh(text.slice(s, e))}</span>);
+    pos = e;
+  });
+  if (pos < text.length) out.push(<span key="z">{showCh(text.slice(pos))}</span>);
+  return <>{out}</>;
+}
+
+/** Normalización: las mismas operaciones de normalize() (core.py), una por una. */
 export function StepDocument({ a }: { a: Analysis }) {
   const n = a.normalize;
+  const steps = n.steps;
+  const S = steps.length;
+  const cycle = 1 + 2 * S + 5;
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setT((v) => (v + 1) % cycle), 1100);
+    return () => clearInterval(id);
+  }, [cycle]);
+
+  const phase = t === 0 ? -1 : t > 2 * S ? S : Math.floor((t - 1) / 2); // -1 original · 0..S-1 operaciones · S final
+  const result = phase >= 0 && phase < S && (t - 1) % 2 === 1;
+  const cur = phase >= 0 && phase < S ? steps[phase] : null;
+  const text = cur ? (result ? cur.after : cur.before) : phase === S && S ? steps[S - 1].after : n.preview;
+  const marks = cur && !result ? cur.marks : [];
+  const pills = ["Texto original", ...steps.map((s) => s.label)];
+  const active = phase === -1 ? 0 : phase === S ? S : phase + 1;
+
   return (
     <>
-      <div className="two">
-        <div className="box"><h4>Original · {n.original_chars} caracteres</h4><p className="txt">{n.original}</p></div>
-        <div className="arrow">→</div>
-        <div className="box"><h4>Normalizado · {n.normalized_chars} caracteres</h4><p className="txt mono">{n.normalized}</p></div>
+      <div className="sh-stages" aria-label="Operaciones de normalize()">
+        {pills.map((l, j) => (
+          <span key={l} className={`stage-pill ${j === active && phase !== S ? "on" : j <= active ? "done" : ""}`}><b>{j + 1}</b> {l}</span>
+        ))}
+        <button onClick={() => setT(0)} aria-label="Repetir la animación">↻ Repetir</button>
       </div>
-      <p className="note">Minúsculas, sin tildes, y toda secuencia de signos o espacios pasa a un solo espacio.</p>
+
+      <div className="norm-box mono" aria-live="off">
+        <Segs text={text} marks={marks} cls="mark" />
+        {n.original_chars > n.preview.length && <span className="more">…</span>}
+      </div>
+
+      {cur && <code className="norm-code mono">{cur.code}</code>}
+      <p className="note sh-msg" role="status">
+        {phase === -1 && <>Este es tu texto tal como llegó (primeras {n.preview.length} letras). Tiene mayúsculas, tildes, signos y saltos de línea: <span className="mono">·</span> es un espacio y <span className="mono">↵</span> un salto de línea.</>}
+        {cur && !result && <>{cur.label}: {cur.marks.length ? "las letras resaltadas van a cambiar." : "aquí no hay nada que cambiar."}</>}
+        {cur && result && <>Resultado de «{cur.label.toLowerCase()}».</>}
+        {phase === S && <><b>normalize()</b> devolvió {n.normalized_chars.toLocaleString("es")} caracteres a partir de {n.original_chars.toLocaleString("es")}. Los espacios no desaparecen: cada grupo de signos o espacios queda como <b>un solo espacio</b> (<span className="mono">·</span>), por eso los shingles pueden llevar uno. Con este texto se cortan los k-shingles.</>}
+      </p>
+
+      <details className="tune">
+        <summary>Ver el texto completo, antes y después</summary>
+        <div className="two">
+          <div className="box"><h4>Original · {n.original_chars} caracteres</h4><p className="txt">{n.original}</p></div>
+          <div className="arrow">→</div>
+          <div className="box"><h4>Normalizado · {n.normalized_chars} caracteres</h4><p className="txt mono">{n.normalized}</p></div>
+        </div>
+      </details>
     </>
   );
 }

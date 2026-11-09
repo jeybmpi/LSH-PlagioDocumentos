@@ -18,11 +18,59 @@ _P = np.uint64(PRIME)
 
 
 # ---------- 1. Preprocesamiento ----------
+def _lower(t: str) -> str:
+    return t.lower()
+
+
+def _strip_accents(t: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", t) if not unicodedata.combining(c))
+
+
+def _collapse(t: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", t)
+
+
 def normalize(text: str) -> str:
-    """Minúsculas, sin tildes, y toda secuencia no alfanumérica pasa a un solo espacio."""
-    t = unicodedata.normalize("NFKD", text.lower())
-    t = "".join(c for c in t if not unicodedata.combining(c))
-    return re.sub(r"[^a-z0-9]+", " ", t).strip()
+    """Minúsculas, sin tildes, y toda secuencia no alfanumérica pasa a un solo espacio.
+
+    Los espacios no desaparecen: cada grupo de signos, saltos de línea y espacios queda como UNO solo,
+    y por eso los shingles pueden contener un espacio.
+    """
+    return _collapse(_strip_accents(_lower(text))).strip()
+
+
+def normalize_steps(text: str, limit: int = 240) -> list[dict]:
+    """Las mismas operaciones de normalize(), una por una, sobre las primeras `limit` letras.
+
+    Cada paso trae el texto antes y después y `marks`: rangos de `before` que ese paso cambia o quita.
+    El `after` del último paso es igual a normalize(text[:limit]).
+    """
+    t0 = text[:limit]
+    steps: list[dict] = []
+
+    t1 = _lower(t0)
+    marks = [[k, k + 1] for k, (x, y) in enumerate(zip(t0, t1)) if x != y] if len(t0) == len(t1) else []
+    steps.append({"id": "lower", "label": "Minúsculas", "code": "t = text.lower()", "before": t0, "after": t1, "marks": marks})
+
+    marks, out = [], []
+    for k, ch in enumerate(t1):
+        plain = _strip_accents(ch)
+        out.append(plain)
+        if plain != ch:
+            marks.append([k, k + 1])
+    t2 = "".join(out)
+    steps.append({"id": "accents", "label": "Sin tildes", "code": 'NFKD(t) y quitar marcas combinantes (á → a, ñ → n)',
+                  "before": t1, "after": t2, "marks": marks})
+
+    marks = [[m.start(), m.end()] for m in re.finditer(r"[^a-z0-9]+", t2) if m.group() != " "]
+    t3 = _collapse(t2)
+    steps.append({"id": "collapse", "label": "Signos y espacios → un espacio", "code": 're.sub(r"[^a-z0-9]+", " ", t)',
+                  "before": t2, "after": t3, "marks": marks})
+
+    lead, trail = len(t3) - len(t3.lstrip()), len(t3) - len(t3.rstrip())
+    marks = ([[0, lead]] if lead else []) + ([[len(t3) - trail, len(t3)]] if trail else [])
+    steps.append({"id": "strip", "label": "Recortar extremos", "code": "t.strip()", "before": t3, "after": t3.strip(), "marks": marks})
+    return steps
 
 
 def shingles(norm: str, k: int) -> list[str]:

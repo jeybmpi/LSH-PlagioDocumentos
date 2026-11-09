@@ -32,7 +32,11 @@ export interface Curve { points: number[][]; threshold: number }
 export interface Analysis {
   params: { k: number; n: number; b: number; r: number; threshold_theory: number; target: number };
   query: { title: string; chars: number };
-  normalize: { original: string; normalized: string; original_chars: number; normalized_chars: number };
+  normalize: {
+    original: string; normalized: string; original_chars: number; normalized_chars: number;
+    preview: string;
+    steps: { id: string; label: string; code: string; before: string; after: string; marks: number[][] }[];
+  };
   shingles: {
     total: number; windows: number; prefix: string;
     trace: { i: number; text: string; new: boolean; size: number }[];

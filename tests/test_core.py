@@ -175,3 +175,25 @@ def test_analyze_expone_ventanas_y_conjunto():
     assert sh["windows"] >= sh["total"] > 0          # bolsa >= conjunto
     assert sh["trace"] and sh["trace"][-1]["size"] <= sh["total"]
     assert len(sh["prefix"]) == len(sh["trace"]) + r["params"]["k"] - 1
+
+
+def test_normalize_steps_son_las_mismas_operaciones_que_normalize():
+    txt = "¡Hola,   MUNDO!\n\nÁrbol: «niño» — 3 años."
+    steps = core.normalize_steps(txt)
+    assert [s["id"] for s in steps] == ["lower", "accents", "collapse", "strip"]
+    assert steps[-1]["after"] == core.normalize(txt) == "hola mundo arbol nino 3 anos"
+    for a, b in zip(steps, steps[1:]):
+        assert a["after"] == b["before"]                      # cada paso alimenta al siguiente
+    for s in steps:
+        assert all(0 <= x < y <= len(s["before"]) for x, y in s["marks"])
+    assert steps[1]["after"].count("á") == 0 and steps[1]["marks"]  # marcó las tildes
+    assert core.normalize("a  b").count(" ") == 1             # los espacios NO desaparecen: se reducen a uno
+    long = ("Ñandú, Éxito. " * 80)
+    assert core.normalize_steps(long, 100)[-1]["after"] == core.normalize(long[:100])
+
+
+def test_analyze_incluye_los_pasos_de_normalizacion():
+    docs = [dict(id=str(i), **d) for i, d in enumerate(seed.build_samples())]
+    r = pipeline.analyze(docs[0]["content"], "q", docs[1:], 5, 20, 5, 0.5)
+    n = r["normalize"]
+    assert n["steps"][-1]["after"] == core.normalize(n["preview"]) and len(n["preview"]) <= 240

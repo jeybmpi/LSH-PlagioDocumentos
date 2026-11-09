@@ -5,7 +5,7 @@ import * as S from "./Steps";
 type Apply = (b: number, r: number) => void;
 interface Def { title: string; book: string; render: (a: Analysis, apply?: Apply) => ReactNode }
 const STEPS: Def[] = [
-  { title: "Documento", book: "3.2 · Normalización", render: (a) => <S.StepDocument a={a} /> },
+  { title: "Normalización", book: "3.2 · normalize()", render: (a) => <S.StepDocument a={a} /> },
   { title: "Shingles", book: "3.2 · k-shingles", render: (a) => <S.StepShingles a={a} /> },
   { title: "Fingerprints", book: "3.2.3 · Hash a 32 bits", render: (a) => <S.StepFingerprints a={a} /> },
   { title: "Firma minhash", book: "3.3 · Minhashing", render: (a) => <S.StepSignature a={a} /> },

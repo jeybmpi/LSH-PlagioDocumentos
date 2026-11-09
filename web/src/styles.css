@@ -399,3 +399,10 @@ details.tune[open] summary { margin-bottom: 8px; }
 .set-chip.dupchip { background: color-mix(in srgb, var(--warn) 40%, var(--bg)); border-color: var(--warn); animation: shake .5s ease; }
 @keyframes shake { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 .sh-msg { min-height: 3em; }
+
+/* ---- Normalización animada ---- */
+.norm-box { min-height: 110px; padding: 12px 14px; border: 1px solid var(--ln); border-radius: 14px; background: var(--surface-2); font-size: 18px; line-height: 1.7; word-break: break-word; margin-bottom: 8px; }
+.norm-box .mark { background: color-mix(in srgb, var(--warn) 55%, transparent); border-radius: 3px; outline: 1px solid var(--warn); animation: pulse 1s ease infinite; }
+.norm-box .more { color: var(--mut); }
+@keyframes pulse { 50% { background: color-mix(in srgb, var(--bad) 35%, transparent); } }
+.norm-code { display: inline-block; margin: 2px 0 6px; padding: 3px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--ln); color: var(--ac); font-size: 14px; }

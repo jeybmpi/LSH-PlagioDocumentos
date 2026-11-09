@@ -9,6 +9,7 @@ import numpy as np
 from . import core
 
 TEXT_CAP = 20000
+NORMALIZE_PREVIEW = 240  # letras del texto que se animan en la normalización
 TRACE_WINDOWS = 60  # ventanas que se muestran en la animación de shingles
 _cache: dict[tuple, "Prepared"] = {}
 
@@ -125,7 +126,8 @@ def analyze(text: str, title: str, docs: list[dict], k: int, b: int, r: int, t: 
         "params": {"k": k, "n": n, "b": b, "r": r, "threshold_theory": round(core.threshold(b, r), 4), "target": t},
         "query": {"title": title, "chars": len(text)},
         "normalize": {"original": text[:1500], "normalized": q.norm[:1500],
-                      "original_chars": len(text), "normalized_chars": len(q.norm)},
+                      "original_chars": len(text), "normalized_chars": len(q.norm),
+                      "preview": text[:NORMALIZE_PREVIEW], "steps": core.normalize_steps(text, NORMALIZE_PREVIEW)},
         "shingles": {
             "total": len(q.shs),  # shingles únicos: el conjunto S
             "windows": max(len(q.norm) - k + 1, 1 if q.norm else 0),  # posiciones de la ventana: la "bolsa" antes de quitar repetidos
