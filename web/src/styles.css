@@ -406,3 +406,11 @@ details.tune[open] summary { margin-bottom: 8px; }
 .norm-box .more { color: var(--mut); }
 @keyframes pulse { 50% { background: color-mix(in srgb, var(--bad) 35%, transparent); } }
 .norm-code { display: inline-block; margin: 2px 0 6px; padding: 3px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--ln); color: var(--ac); font-size: 14px; }
+
+/* ---- Control de las animaciones de los pasos 1 y 2 ---- */
+.anim-ctl { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0 12px; padding: 8px 10px; border: 1px solid var(--ln); border-radius: 12px; background: var(--surface-2); }
+.anim-ctl input[type="range"] { flex: 1; min-width: 140px; accent-color: var(--ac); }
+.anim-pos { color: var(--mut); font-size: 13px; min-width: 64px; text-align: right; }
+.anim-speed { display: flex; gap: 6px; align-items: center; color: var(--mut); font-size: 13px; }
+.anim-speed select { background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--ln); border-radius: 8px; padding: 4px 8px; }
+.space-toggle { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 8px 0 10px; color: var(--mut); font-size: 14px; }

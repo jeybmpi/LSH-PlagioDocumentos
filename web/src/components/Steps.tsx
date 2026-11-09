@@ -6,14 +6,55 @@ const P = 4294967311;
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const hue = (v: number) => Math.round((v / P) * 360);
 
-function useTicker(max: number, ms: number) {
-  const [i, setI] = useState(0);
+/** Si es true, la animación arranca sola al entrar al paso (una sola pasada). Si es false, espera a «Reproducir». */
+const AUTOPLAY = false;
+const SPEEDS = [{ label: "Lenta", x: 0.5 }, { label: "Normal", x: 1 }, { label: "Rápida", x: 2 }];
+
+/** Línea de tiempo de una animación: `total` cuadros, se recorre UNA vez y se detiene en el último. */
+function useTimeline(total: number, baseMs: number) {
+  const last = Math.max(total - 1, 0);
+  const [t, setT] = useState(0);
+  const [playing, setPlaying] = useState(AUTOPLAY && last > 0);
+  const [speed, setSpeed] = useState(1);
+  useEffect(() => { setT(0); setPlaying(AUTOPLAY && total > 1); }, [total]);
+  const cur = Math.min(t, last);
   useEffect(() => {
-    const id = setInterval(() => setI((v) => (v + 1) % Math.max(max, 1)), ms);
-    return () => clearInterval(id);
-  }, [max, ms]);
-  return i;
+    if (!playing) return;
+    if (cur >= last) { setPlaying(false); return; }
+    const id = setTimeout(() => {
+      setT(cur + 1);
+      if (cur + 1 >= last) setPlaying(false);
+    }, baseMs / speed);
+    return () => clearTimeout(id);
+  }, [playing, cur, last, baseMs, speed]);
+  const atEnd = cur >= last;
+  return {
+    t: cur, last, total, playing, speed, atEnd, setSpeed,
+    toggle: () => { if (playing) setPlaying(false); else { if (atEnd) setT(0); setPlaying(last > 0); } },
+    prev: () => { setPlaying(false); setT((v) => Math.max(Math.min(v, last) - 1, 0)); },
+    next: () => { setPlaying(false); setT((v) => Math.min(Math.min(v, last) + 1, last)); },
+    seek: (v: number) => { setPlaying(false); setT(Math.min(Math.max(v, 0), last)); },
+  };
 }
+type Timeline = ReturnType<typeof useTimeline>;
+
+function PlayControls({ tl }: { tl: Timeline }) {
+  return (
+    <div className="anim-ctl" role="group" aria-label="Control de la animación">
+      <button onClick={tl.prev} disabled={tl.t === 0} aria-label="Cuadro anterior">← Atrás</button>
+      <button className="primary" onClick={tl.toggle}>{tl.playing ? "❚❚ Pausar" : tl.atEnd ? "↻ Repetir" : "▶ Reproducir"}</button>
+      <button onClick={tl.next} disabled={tl.atEnd} aria-label="Cuadro siguiente">Adelante →</button>
+      <input type="range" min={0} max={tl.last} step={1} value={tl.t} onChange={(e) => tl.seek(Number(e.target.value))} aria-label="Posición de la animación" />
+      <span className="mono anim-pos" aria-live="off">{tl.t + 1} / {tl.total}</span>
+      <label className="anim-speed">Velocidad
+        <select value={tl.speed} onChange={(e) => tl.setSpeed(Number(e.target.value))} aria-label="Velocidad de la animación">
+          {SPEEDS.map((o) => <option key={o.x} value={o.x}>{o.label}</option>)}
+        </select>
+      </label>
+    </div>
+  );
+}
+
 function useReady() {
   const [r, setR] = useState(false);
   useEffect(() => { const id = setTimeout(() => setR(true), 80); return () => clearTimeout(id); }, []);
@@ -60,6 +101,9 @@ export function AdviceBox({ a, onApply }: { a: Analysis; onApply?: Apply }) {
 /** Hace visibles los espacios y saltos de línea; cada carácter se cambia por otro, así los índices no se mueven. */
 const showCh = (s: string) => s.replace(/ /g, "·").replace(/\n/g, "↵").replace(/\t/g, "⇥");
 
+/** Para el panel completo: marca espacios, tabulaciones y saltos de línea (el salto se conserva para no juntar las líneas). */
+const showAll = (s: string) => s.replace(/ /g, "·").replace(/\t/g, "⇥").replace(/\n/g, "↵\n");
+
 function Segs({ text, marks, cls }: { text: string; marks: number[][]; cls: string }) {
   const out: JSX.Element[] = [];
   let pos = 0;
@@ -77,12 +121,10 @@ export function StepDocument({ a }: { a: Analysis }) {
   const n = a.normalize;
   const steps = n.steps;
   const S = steps.length;
-  const cycle = 1 + 2 * S + 5;
-  const [t, setT] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setT((v) => (v + 1) % cycle), 1100);
-    return () => clearInterval(id);
-  }, [cycle]);
+  // cuadros: texto original · (antes, después) por cada operación · texto final
+  const tl = useTimeline(2 * S + 2, 1100);
+  const t = tl.t;
+  const [spaces, setSpaces] = useState(true);  // mostrar · y ↵ en el panel «antes y después»
 
   const phase = t === 0 ? -1 : t > 2 * S ? S : Math.floor((t - 1) / 2); // -1 original · 0..S-1 operaciones · S final
   const result = phase >= 0 && phase < S && (t - 1) % 2 === 1;
@@ -98,8 +140,8 @@ export function StepDocument({ a }: { a: Analysis }) {
         {pills.map((l, j) => (
           <span key={l} className={`stage-pill ${j === active && phase !== S ? "on" : j <= active ? "done" : ""}`}><b>{j + 1}</b> {l}</span>
         ))}
-        <button onClick={() => setT(0)} aria-label="Repetir la animación">↻ Repetir</button>
       </div>
+      <PlayControls tl={tl} />
 
       <div className="norm-box mono" aria-live="off">
         <Segs text={text} marks={marks} cls="mark" />
@@ -116,10 +158,14 @@ export function StepDocument({ a }: { a: Analysis }) {
 
       <details className="tune">
         <summary>Ver el texto completo, antes y después</summary>
+        <label className="space-toggle">
+          <input type="checkbox" checked={spaces} onChange={(e) => setSpaces(e.target.checked)} />
+          Mostrar los espacios (<span className="mono">·</span>) y los saltos de línea (<span className="mono">↵</span>) tal como los procesa el código
+        </label>
         <div className="two">
-          <div className="box"><h4>Original · {n.original_chars} caracteres</h4><p className="txt">{n.original}</p></div>
+          <div className="box"><h4>Original · {n.original_chars} caracteres</h4><p className="txt">{spaces ? showAll(n.original) : n.original}</p></div>
           <div className="arrow">→</div>
-          <div className="box"><h4>Normalizado · {n.normalized_chars} caracteres</h4><p className="txt mono">{n.normalized}</p></div>
+          <div className="box"><h4>Normalizado · {n.normalized_chars} caracteres</h4><p className="txt mono">{spaces ? showAll(n.normalized) : n.normalized}</p></div>
         </div>
       </details>
     </>
@@ -133,13 +179,10 @@ export function StepShingles({ a }: { a: Analysis }) {
   const k = a.params.k;
   const sh = a.shingles;
   const trace = sh.trace;
-  const INTRO = 4, HOLD = 8;
-  const cycle = INTRO + trace.length + HOLD;
-  const [t, setT] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setT((v) => (v + 1) % cycle), 420);
-    return () => clearInterval(id);
-  }, [cycle]);
+  const INTRO = 4;  // cuadros 0-1: texto normalizado · 2-3: se guarda como conjunto S
+  // cuadros: introducción · una ventana por cuadro · cuadro final con el resumen
+  const tl = useTimeline(INTRO + trace.length + 1, 420);
+  const t = tl.t;
 
   const idx = t - INTRO; // ventana actual; negativa durante la introducción
   const stage = idx < 0 ? (t < 2 ? 0 : 1) : idx < trace.length ? 2 : 3;
@@ -155,8 +198,8 @@ export function StepShingles({ a }: { a: Analysis }) {
         {labels.map((l, j) => (
           <span key={l} className={`stage-pill ${j === stage ? "on" : j < stage ? "done" : ""}`}><b>{j + 1}</b> {l}</span>
         ))}
-        <button onClick={() => setT(0)} aria-label="Repetir la animación">↻ Repetir</button>
       </div>
+      <PlayControls tl={tl} />
 
       <div className="window mono" aria-label="Texto normalizado con la ventana de k letras">
         {sh.prefix.split("").map((c, j) => (
