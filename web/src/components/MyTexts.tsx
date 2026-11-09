@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { addDoc, deleteDoc, deleteGroup, getDoc, updateDoc } from "../api";
+import { addDoc, deleteDoc, deleteGroup, getDoc, renameGroup, updateDoc } from "../api";
 import { LONG_THRESHOLD, fragLabel, groupDocs } from "../groups";
 import type { DocBrief, SavedText } from "../types";
 
@@ -9,6 +9,9 @@ interface Props { docs: DocBrief[]; onChange: () => Promise<void> }
 export function MyTexts({ docs, onChange }: Props) {
   const [openId, setOpenId] = useState<OpenId>(null);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [fragOf, setFragOf] = useState<string | null>(null);  // si el texto abierto es un fragmento: su contenedor
+  const [renaming, setRenaming] = useState(false);
+  const [newName, setNewName] = useState("");
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [orig, setOrig] = useState({ title: "", text: "" });
@@ -32,13 +35,13 @@ export function MyTexts({ docs, onChange }: Props) {
     setBusy(true); setErr(""); setMsg("");
     try {
       const d = await getDoc(id);
-      setOpenId(id); setTitle(d.title); setText(d.content); setOrig({ title: d.title, text: d.content });
+      setOpenId(id); setFragOf(d.group_id ?? null); setTitle(d.title); setText(d.content); setOrig({ title: d.title, text: d.content });
       reveal();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   const startNew = () => {
     if (!confirmLeave()) return;
-    setOpenId("new"); setTitle(""); setText(""); setOrig({ title: "", text: "" }); setErr(""); setMsg(""); reveal();
+    setOpenId("new"); setFragOf(null); setTitle(""); setText(""); setOrig({ title: "", text: "" }); setErr(""); setMsg(""); reveal();
   };
   const close = () => { if (confirmLeave()) { setOpenId(null); setErr(""); setMsg(""); } };
 
@@ -57,6 +60,23 @@ export function MyTexts({ docs, onChange }: Props) {
       setOpenId(saved.id); setTitle(saved.title); setOrig({ title: saved.title, text });
       await onChange();
       setMsg("Cambios guardados");
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+  const startRename = () => {
+    if (!group || group.kind !== "group") return;
+    setNewName(group.name); setRenaming(true); setErr(""); setMsg("");
+  };
+  const saveRename = async () => {
+    if (!group || group.kind !== "group") return;
+    const name = newName.trim();
+    if (!name) { setErr("El nombre del contenedor no puede estar vacío."); return; }
+    if (name === group.name) { setRenaming(false); return; }
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      await renameGroup(group.id, name);
+      await onChange();
+      setRenaming(false);
+      setMsg(`Contenedor renombrado a «${name}». Sus fragmentos ahora se llaman «${name} · parte N».`);
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   const removeGroup = async () => {
@@ -93,7 +113,8 @@ export function MyTexts({ docs, onChange }: Props) {
             </div>
           </header>
           <div className="new">
-            <input value={title} onChange={(e) => { setTitle(e.target.value); setMsg(""); }} aria-label={willSplit ? "Nombre del contenedor" : "Título"} placeholder="Título (opcional): sin título se guarda como «Texto sin título»" maxLength={200} />
+            <input value={title} onChange={(e) => { setTitle(e.target.value); setMsg(""); }} aria-label={willSplit ? "Nombre del contenedor" : "Título"} placeholder="Título (opcional): sin título se guarda como «Texto sin título»" maxLength={200} disabled={!!fragOf} title={fragOf ? "El título de un fragmento sale del nombre de su contenedor" : undefined} />
+            {fragOf && <p className="note">Este texto es un fragmento: su título sale del nombre del contenedor. Para cambiarlo, renombra el contenedor.</p>}
             <textarea className="editor-text" value={text} onChange={(e) => { setText(e.target.value); setMsg(""); }} aria-label="Contenido" placeholder="Escribe o pega el texto aquí (mínimo 10 caracteres)" />
           </div>
           {willSplit && (
@@ -114,12 +135,20 @@ export function MyTexts({ docs, onChange }: Props) {
         <section className="panel group-panel" aria-label={`Contenedor ${group.name}`}>
           <header>
             <div>
-              <h3>{group.name}</h3>
+              {renaming ? (
+                <div className="rename-row">
+                  <input value={newName} onChange={(e) => setNewName(e.target.value)} aria-label="Nuevo nombre del contenedor" maxLength={200} autoFocus
+                    onKeyDown={(e: { key: string }) => { if (e.key === "Enter") void saveRename(); if (e.key === "Escape") setRenaming(false); }} />
+                  <button className="primary" onClick={saveRename} disabled={busy || !newName.trim()}>{busy ? "Guardando…" : "Guardar nombre"}</button>
+                  <button onClick={() => setRenaming(false)} disabled={busy}>Cancelar</button>
+                </div>
+              ) : <h3>{group.name}</h3>}
               <small>{fragLabel(group.docs.length)} · los fragmentos vecinos se solapan a propósito y no se comparan entre sí</small>
             </div>
             <div className="ctl">
+              {!renaming && <button onClick={startRename} disabled={busy}>Cambiar nombre</button>}
               <button className="danger" onClick={removeGroup} disabled={busy}>Eliminar contenedor</button>
-              <button onClick={() => setOpenGroup(null)} disabled={busy}>Cerrar</button>
+              <button onClick={() => { setOpenGroup(null); setRenaming(false); }} disabled={busy}>Cerrar</button>
             </div>
           </header>
           <div className="text-grid">
@@ -140,7 +169,7 @@ export function MyTexts({ docs, onChange }: Props) {
       </div>
       <div className="text-grid">
         {items.map((it) => it.kind === "group" ? (
-          <button key={it.id} className={`text-card group-card ${openGroup === it.id ? "on" : ""}`} onClick={() => setOpenGroup(openGroup === it.id ? null : it.id)} disabled={busy}>
+          <button key={it.id} className={`text-card group-card ${openGroup === it.id ? "on" : ""}`} onClick={() => { setOpenGroup(openGroup === it.id ? null : it.id); setRenaming(false); }} disabled={busy}>
             <strong>{it.name}</strong>
             <span className="preview">Contenedor de un texto largo. Ábrelo para ver, editar o eliminar cada fragmento.</span>
             <small>{fragLabel(it.docs.length)} · {new Date(it.created_at).toLocaleDateString("es")}</small>

@@ -374,3 +374,9 @@ details.tune[open] summary { margin-bottom: 8px; }
 .advice.good { border-left-color: var(--ok); }
 .advice.warn { border-left-color: var(--warn); }
 .advice.bad { border-left-color: var(--bad); }
+
+/* ---- Cambiar nombre de un contenedor ---- */
+.rename-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.rename-row input { min-width: 220px; flex: 1; background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--ln); border-radius: 12px; padding: 8px 12px; }
+.rename-row input:focus { border-color: var(--ac); }
+.new input:disabled { opacity: .7; cursor: not-allowed; }

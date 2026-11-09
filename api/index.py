@@ -112,7 +112,11 @@ def add_document(body: DocIn):
 
 @router.put("/documents/{doc_id}")
 def update_document(doc_id: str, body: DocIn):
-    d = store.get_store().update(doc_id, _title_or_generic(body.title, doc_id), body.content)
+    s = store.get_store()
+    cur = s.get(doc_id)
+    # el título de un fragmento lo fija su contenedor: se cambia renombrando el contenedor
+    title = cur["title"] if cur and cur.get("group_id") else _title_or_generic(body.title, doc_id)
+    d = s.update(doc_id, title, body.content)
     if not d:
         raise HTTPException(404, "Documento no encontrado")
     return _brief(d)
@@ -122,6 +126,22 @@ def update_document(doc_id: str, body: DocIn):
 def delete_document(doc_id: str):
     store.get_store().delete(doc_id)
     return {"ok": True}
+
+
+class GroupRename(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+
+
+@router.put("/groups/{group_id}")
+def rename_group(group_id: str, body: GroupRename):
+    """Cambia el nombre de un contenedor; los títulos de sus fragmentos («<nombre> · parte N») lo siguen."""
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(422, "El nombre del contenedor no puede estar vacío")
+    n = store.get_store().rename_group(group_id, name)
+    if not n:
+        raise HTTPException(404, "Contenedor no encontrado")
+    return {"ok": True, "name": name, "updated": n}
 
 
 @router.delete("/groups/{group_id}")

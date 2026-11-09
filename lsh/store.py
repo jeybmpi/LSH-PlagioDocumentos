@@ -9,9 +9,17 @@ from datetime import datetime, timezone
 
 import httpx
 
-from . import seed
+from . import bank, seed
 
 TABLE = "documents"
+
+
+def with_group_title(d: dict | None) -> dict | None:
+    """El título de un fragmento se deriva de su contenedor («Libro 1 · parte 3»): así renombrar el
+    contenedor es una sola actualización de group_name y no una por fragmento."""
+    if d and d.get("group_id") and d.get("group_name") and d.get("frag_index") is not None:
+        return {**d, "title": f"{d['group_name']}{bank.PART_SEP}{d['frag_index']}"}
+    return d
 
 
 class StoreError(Exception):
@@ -58,10 +66,10 @@ class MemoryStore:
         self.docs: dict[str, dict] = {}
 
     def list(self) -> list[dict]:
-        return sorted(self.docs.values(), key=lambda d: d["created_at"], reverse=True)
+        return [with_group_title(d) for d in sorted(self.docs.values(), key=lambda d: d["created_at"], reverse=True)]
 
     def get(self, doc_id: str) -> dict | None:
-        return self.docs.get(doc_id)
+        return with_group_title(self.docs.get(doc_id))
 
     def add(self, title: str, content: str, group_id: str | None = None, group_name: str | None = None,
             frag_index: int | None = None) -> dict:
@@ -75,6 +83,12 @@ class MemoryStore:
         return [self.add(r["title"], r["content"], r.get("group_id"), r.get("group_name"), r.get("frag_index"))
                 for r in rows]
 
+    def rename_group(self, group_id: str, name: str) -> int:
+        rows = [d for d in self.docs.values() if d.get("group_id") == group_id]
+        for d in rows:
+            d["group_name"] = name
+        return len(rows)
+
     def delete_group(self, group_id: str) -> int:
         ids = [i for i, d in self.docs.items() if d.get("group_id") == group_id]
         for i in ids:
@@ -85,7 +99,7 @@ class MemoryStore:
         d = self.docs.get(doc_id)
         if d:
             d.update(title=title, content=content, char_count=len(content))
-        return d
+        return with_group_title(d)
 
     def delete(self, doc_id: str) -> None:
         self.docs.pop(doc_id, None)
@@ -113,11 +127,11 @@ class SupabaseStore:
 
     def list(self) -> list[dict]:
         # select=* para que funcione también si aún no se ejecutó la migración de los contenedores
-        return self._req("GET", {"select": "*", "order": "created_at.desc"})
+        return [with_group_title(d) for d in self._req("GET", {"select": "*", "order": "created_at.desc"})]
 
     def get(self, doc_id: str) -> dict | None:
         rows = self._req("GET", {"select": "*", "id": f"eq.{doc_id}"})
-        return rows[0] if rows else None
+        return with_group_title(rows[0]) if rows else None
 
     def add(self, title: str, content: str, group_id: str | None = None, group_name: str | None = None,
             frag_index: int | None = None) -> dict:
@@ -134,6 +148,12 @@ class SupabaseStore:
             out += self._req("POST", json=batch, prefer="return=representation")
         return out
 
+    def rename_group(self, group_id: str, name: str) -> int:
+        """Una sola petición: los títulos de los fragmentos se derivan de group_name al leer."""
+        rows = self._req("PATCH", {"group_id": f"eq.{group_id}", "select": "id"}, json={"group_name": name},
+                         prefer="return=representation")
+        return len(rows or [])
+
     def delete_group(self, group_id: str) -> int:
         rows = self._req("DELETE", {"group_id": f"eq.{group_id}", "select": "id"}, prefer="return=representation")
         return len(rows or [])
@@ -142,7 +162,7 @@ class SupabaseStore:
         rows = self._req("PATCH", {"id": f"eq.{doc_id}"},
                          json={"title": title, "content": content, "char_count": len(content)},
                          prefer="return=representation")
-        return rows[0] if rows else None
+        return with_group_title(rows[0]) if rows else None
 
     def delete(self, doc_id: str) -> None:
         self._req("DELETE", {"id": f"eq.{doc_id}"})

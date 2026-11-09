@@ -175,6 +175,54 @@ def test_banco_sin_contenedores_no_cambia():
     assert ev["total_pairs"] == 120 and ev["skipped_same_group"] == 0
 
 
+# ---------- renombrar contenedores ----------
+def test_renombrar_contenedor_cambia_nombre_y_titulos():
+    st, r = banco_con_libro()
+    otro = st.add("Suelto", "Un texto suelto que no pertenece a ningún contenedor.")
+    assert st.rename_group(r["group_id"], "El Principito") == r["fragments"]
+    frags = [d for d in st.list() if d["group_id"] == r["group_id"]]
+    assert {d["group_name"] for d in frags} == {"El Principito"}
+    assert all(d["title"] == f"El Principito · parte {d['frag_index']}" for d in frags)
+    assert st.get(otro["id"])["title"] == "Suelto"      # los demás textos no cambian
+    assert st.rename_group("no-existe", "X") == 0
+
+
+def test_titulo_de_fragmento_se_deriva_del_contenedor():
+    st = store.MemoryStore()
+    d = st.add("titulo viejo", "contenido " * 5, group_id="g1", group_name="Nuevo", frag_index=4)
+    assert st.get(d["id"])["title"] == "Nuevo · parte 4" and st.list()[0]["title"] == "Nuevo · parte 4"
+
+
+def test_analisis_muestra_el_nombre_nuevo():
+    st, r = banco_con_libro()
+    st.rename_group(r["group_id"], "El Principito")
+    t = libro()
+    pasaje = t[len(t) // 2 : len(t) // 2 + 560]
+    res = pipeline.analyze(pasaje, "q", st.list(), 5, 20, 5, 0.5)
+    assert res["candidates"][0]["title"].startswith("El Principito · parte ")
+
+
+def test_supabase_renombrar_es_una_sola_peticion(monkeypatch):
+    import httpx
+
+    llamadas = []
+
+    def falso(method, url, params=None, json=None, headers=None, timeout=None):
+        llamadas.append((method, params, json))
+        if method == "PATCH":
+            return httpx.Response(200, json=[{"id": str(i)} for i in range(170)])
+        # lectura: el título guardado quedó viejo, pero group_name ya es el nuevo
+        return httpx.Response(200, json=[{"id": "1", "title": "Libro 1 · parte 2", "content": "x" * 20, "char_count": 20,
+                                          "created_at": "2026-01-01", "group_id": "g", "group_name": "El Principito",
+                                          "frag_index": 2}])
+
+    monkeypatch.setattr(store.httpx, "request", falso)
+    sb = store.SupabaseStore("https://abcdefghijklmnop.supabase.co", "sb_secret_x")
+    assert sb.rename_group("g", "El Principito") == 170
+    assert len(llamadas) == 1 and llamadas[0][0] == "PATCH" and llamadas[0][2] == {"group_name": "El Principito"}
+    assert sb.list()[0]["title"] == "El Principito · parte 2"
+
+
 # ---------- API (requiere fastapi: se omiten si no está instalado) ----------
 def _cliente(monkeypatch):
     try:
@@ -222,3 +270,20 @@ def test_api_guardar_desde_comparar_fragmenta(monkeypatch):
     # un segundo texto largo sin título no reutiliza el nombre del contenedor
     res2 = c.post("/api/analyze", json={"text": libro(300, 9), "title": "", "save": True}).json()
     assert res2["saved"]["title"] == "Texto sin título 2"
+
+
+def test_api_renombrar_contenedor(monkeypatch):
+    c = _cliente(monkeypatch)
+    if c is None:
+        return
+    r = c.post("/api/documents", json={"title": "Libro 1", "content": libro(300)}).json()
+    ok = c.put(f"/api/groups/{r['group_id']}", json={"name": "  El Principito  "}).json()
+    assert ok == {"ok": True, "name": "El Principito", "updated": r["fragments"]}
+    docs = c.get("/api/documents").json()
+    assert all(d["group_name"] == "El Principito" and d["title"].startswith("El Principito · parte ") for d in docs)
+    assert c.put(f"/api/groups/{r['group_id']}", json={"name": "   "}).status_code == 422
+    assert c.put("/api/groups/no-existe", json={"name": "X"}).status_code == 404
+    # el título de un fragmento no se puede cambiar editándolo: lo fija el contenedor
+    f = docs[0]
+    got = c.put(f"/api/documents/{f['id']}", json={"title": "Otro título", "content": "contenido nuevo " * 5}).json()
+    assert got["title"] == f["title"]
