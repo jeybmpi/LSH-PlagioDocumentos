@@ -158,3 +158,20 @@ def test_analyze_incluye_consejo_con_la_probabilidad_del_mejor_par():
     assert adv2["needs_change"] == (adv2["p_now"] < 0.9)
     if adv2["suggestion"]:
         assert adv2["suggestion"]["p_detect"] >= 0.9
+
+
+def test_traza_de_shingles_muestra_el_paso_a_conjunto():
+    tr = core.shingle_trace("abcdabd", 2)
+    assert [w["text"] for w in tr] == ["ab", "bc", "cd", "da", "ab", "bd"]
+    assert [w["new"] for w in tr] == [True, True, True, True, False, True]  # el segundo «ab» no entra
+    assert [w["size"] for w in tr] == [1, 2, 3, 4, 4, 5]
+    assert core.shingle_trace("", 5) == [] and core.shingle_trace("ab", 5)[0]["text"] == "ab"
+
+
+def test_analyze_expone_ventanas_y_conjunto():
+    docs = [dict(id=str(i), **d) for i, d in enumerate(seed.build_samples())]
+    r = pipeline.analyze(docs[0]["content"], "q", docs[1:], 5, 20, 5, 0.5)
+    sh = r["shingles"]
+    assert sh["windows"] >= sh["total"] > 0          # bolsa >= conjunto
+    assert sh["trace"] and sh["trace"][-1]["size"] <= sh["total"]
+    assert len(sh["prefix"]) == len(sh["trace"]) + r["params"]["k"] - 1

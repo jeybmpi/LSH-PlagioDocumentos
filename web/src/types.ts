@@ -33,7 +33,11 @@ export interface Analysis {
   params: { k: number; n: number; b: number; r: number; threshold_theory: number; target: number };
   query: { title: string; chars: number };
   normalize: { original: string; normalized: string; original_chars: number; normalized_chars: number };
-  shingles: { total: number; sample: { text: string; value: number; shared: boolean }[] };
+  shingles: {
+    total: number; windows: number; prefix: string;
+    trace: { i: number; text: string; new: boolean; size: number }[];
+    sample: { text: string; value: number; shared: boolean }[];
+  };
   signature: { values: number[]; explain: { index: number; a: number; b: number; min_text: string; min_fp: number; value: number }[] };
   bands: { index: number; rows: number[]; key: string; docs: string[] }[];
   candidates: Candidate[];

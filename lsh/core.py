@@ -39,6 +39,26 @@ def shingles(norm: str, k: int) -> list[str]:
     return out
 
 
+def shingle_trace(norm: str, k: int, limit: int = 60) -> list[dict]:
+    """Recorrido de la ventana de k letras sobre el texto, ventana por ventana.
+
+    Cada paso dice si el shingle es nuevo (entra al conjunto) o repetido (ya estaba, no se agrega) y
+    cuántos elementos tiene el conjunto después. Sirve para dibujar cómo el texto pasa a ser un conjunto.
+    """
+    if not norm:
+        return []
+    if len(norm) < k:
+        return [{"i": 0, "text": norm, "new": True, "size": 1}]
+    seen: set[str] = set()
+    out: list[dict] = []
+    for i in range(min(len(norm) - k + 1, limit)):
+        s = norm[i : i + k]
+        is_new = s not in seen
+        seen.add(s)
+        out.append({"i": i, "text": s, "new": is_new, "size": len(seen)})
+    return out
+
+
 def fingerprint(s: str) -> int:
     """Huella de 32 bits de un shingle (0 .. 2**32 - 1)."""
     return int.from_bytes(hashlib.blake2b(s.encode(), digest_size=4).digest(), "big")

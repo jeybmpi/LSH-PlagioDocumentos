@@ -9,6 +9,7 @@ import numpy as np
 from . import core
 
 TEXT_CAP = 20000
+TRACE_WINDOWS = 60  # ventanas que se muestran en la animación de shingles
 _cache: dict[tuple, "Prepared"] = {}
 
 
@@ -125,7 +126,13 @@ def analyze(text: str, title: str, docs: list[dict], k: int, b: int, r: int, t: 
         "query": {"title": title, "chars": len(text)},
         "normalize": {"original": text[:1500], "normalized": q.norm[:1500],
                       "original_chars": len(text), "normalized_chars": len(q.norm)},
-        "shingles": {"total": len(q.shs), "sample": sample},
+        "shingles": {
+            "total": len(q.shs),  # shingles únicos: el conjunto S
+            "windows": max(len(q.norm) - k + 1, 1 if q.norm else 0),  # posiciones de la ventana: la "bolsa" antes de quitar repetidos
+            "prefix": q.norm[: TRACE_WINDOWS + k - 1],
+            "trace": core.shingle_trace(q.norm, k, TRACE_WINDOWS),
+            "sample": sample,
+        },
         "signature": {"values": [int(x) for x in q.sig], "explain": explain},
         "bands": bands,
         "candidates": rows,

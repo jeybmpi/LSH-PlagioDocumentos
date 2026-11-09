@@ -71,22 +71,68 @@ export function StepDocument({ a }: { a: Analysis }) {
   );
 }
 
+const visible = (s: string) => s.replace(/ /g, "·");
+
+/** Shingles: el texto se convierte en un conjunto y luego la ventana de k letras lo va llenando. */
 export function StepShingles({ a }: { a: Analysis }) {
   const k = a.params.k;
-  const norm = a.normalize.normalized.slice(0, 56);
-  const max = Math.max(norm.length - k + 1, 1);
-  const i = useTicker(max, 450);
+  const sh = a.shingles;
+  const trace = sh.trace;
+  const INTRO = 4, HOLD = 8;
+  const cycle = INTRO + trace.length + HOLD;
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setT((v) => (v + 1) % cycle), 420);
+    return () => clearInterval(id);
+  }, [cycle]);
+
+  const idx = t - INTRO; // ventana actual; negativa durante la introducción
+  const stage = idx < 0 ? (t < 2 ? 0 : 1) : idx < trace.length ? 2 : 3;
+  const seen = trace.slice(0, Math.max(0, Math.min(idx + 1, trace.length)));
+  const inSet = seen.filter((w) => w.new);
+  const cur = stage === 2 ? trace[idx] : null;
+  const labels = ["Texto normalizado", "El documento es un conjunto S", `Ventana de k = ${k} letras`, "Repetidos cuentan una vez"];
+  const partial = sh.windows > trace.length;
+
   return (
     <>
-      <div className="window mono" aria-label="Ventana deslizante de k letras">
-        {norm.split("").map((c, j) => (
-          <span key={j} className={j >= i && j < i + k ? "win" : ""}>{c === " " ? "·" : c}</span>
+      <div className="sh-stages" aria-label="Fases de la animación">
+        {labels.map((l, j) => (
+          <span key={l} className={`stage-pill ${j === stage ? "on" : j < stage ? "done" : ""}`}><b>{j + 1}</b> {l}</span>
         ))}
+        <button onClick={() => setT(0)} aria-label="Repetir la animación">↻ Repetir</button>
       </div>
-      <p className="note">Ventana de k = {k} letras: <b className="mono">«{norm.slice(i, i + k)}»</b>. El documento tiene <b>{a.shingles.total}</b> shingles únicos.</p>
+
+      <div className="window mono" aria-label="Texto normalizado con la ventana de k letras">
+        {sh.prefix.split("").map((c, j) => (
+          <span key={j} className={cur && j >= cur.i && j < cur.i + k ? (cur.new ? "win" : "win dup") : ""}>{c === " " ? "·" : c}</span>
+        ))}
+        {partial && <span className="more">…</span>}
+      </div>
+
+      <div className={`sh-arrow ${stage >= 1 ? "on" : ""}`} aria-hidden>↓ <span>se guarda como conjunto: sin orden y sin repetidos</span></div>
+
+      <div className={`set-box mono ${stage >= 1 ? "on" : ""}`}>
+        <span className="set-name">S =</span><span className="brace">{"{"}</span>
+        {inSet.map((w) => (
+          <span key={w.text} className={`chip set-chip pop ${cur && cur.text === w.text ? (cur.new ? "hit" : "dupchip") : ""}`}>{visible(w.text)}</span>
+        ))}
+        <span className="brace">{"}"}</span>
+      </div>
+
+      <p className="note sh-msg" role="status">
+        {stage === 0 && "Partimos del texto ya normalizado (paso 1)."}
+        {stage === 1 && "Antes de cortar: el documento no se guarda como texto sino como el conjunto S de sus shingles."}
+        {stage === 2 && cur && (cur.new
+          ? <>Ventana {idx + 1} de {trace.length}: <b className="mono">«{visible(cur.text)}»</b> es nuevo y entra a S. S tiene {cur.size}.</>
+          : <>Ventana {idx + 1} de {trace.length}: <b className="mono">«{visible(cur.text)}»</b> ya estaba en S, no se agrega. S sigue en {cur.size}.</>)}
+        {stage === 3 && <>En todo el documento hay <b>{sh.windows.toLocaleString("es")}</b> ventanas y solo <b>{sh.total.toLocaleString("es")}</b> shingles distintos: ese es el conjunto S.{partial && ` Aquí se animan las primeras ${trace.length} ventanas.`}</>}
+      </p>
+
+      <h4>Primeros shingles únicos de S ({Math.min(sh.sample.length, sh.total)} de {sh.total.toLocaleString("es")})</h4>
       <div className="chips">
-        {a.shingles.sample.map((s, j) => (
-          <span key={s.text} className={`chip pop ${s.shared ? "shared" : ""}`} style={{ animationDelay: `${j * 25}ms` }}>{s.text.replace(/ /g, "·")}</span>
+        {sh.sample.map((s, j) => (
+          <span key={s.text} className={`chip pop ${s.shared ? "shared" : ""}`} style={{ animationDelay: `${j * 25}ms` }}>{visible(s.text)}</span>
         ))}
       </div>
       {a.best && <p className="legend"><span className="chip shared">verde</span> shingle que también aparece en «{a.best.title}»</p>}

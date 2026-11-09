@@ -378,3 +378,24 @@ details.tune[open] summary { margin-bottom: 8px; }
 /* ---- Nombre editable del contenedor ---- */
 .group-panel > .new { margin-bottom: 14px; }
 .new input:disabled { opacity: .7; cursor: not-allowed; }
+
+/* ---- Shingles: del texto al conjunto ---- */
+.sh-stages { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.stage-pill { border: 1px solid var(--ln); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--mut); transition: all .3s; }
+.stage-pill b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--ln); color: var(--fg); font-size: 12px; margin-right: 4px; }
+.stage-pill.done { color: var(--fg); }
+.stage-pill.on { background: var(--ac); border-color: var(--ac); color: #fff; font-weight: 700; }
+.stage-pill.on b { background: #fff; color: var(--ac); }
+.window .win.dup { background: var(--warn); color: #1a1a1a; }
+.window .more { color: var(--mut); padding-left: 4px; }
+.sh-arrow { margin: 6px 0; color: var(--mut); font-size: 20px; opacity: .25; transition: opacity .5s; }
+.sh-arrow span { font-size: 14px; margin-left: 6px; }
+.sh-arrow.on { opacity: 1; }
+.set-box { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 64px; padding: 10px 14px; border: 2px dashed var(--ln); border-radius: 14px; opacity: .45; transition: all .5s; }
+.set-box.on { opacity: 1; border-color: var(--ac); background: color-mix(in srgb, var(--ac) 6%, transparent); }
+.set-name { font-weight: 700; color: var(--ac); }
+.brace { font-size: 30px; line-height: 1; color: var(--ac); }
+.set-chip.hit { background: color-mix(in srgb, var(--ok) 30%, var(--bg)); border-color: var(--ok); }
+.set-chip.dupchip { background: color-mix(in srgb, var(--warn) 40%, var(--bg)); border-color: var(--warn); animation: shake .5s ease; }
+@keyframes shake { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.sh-msg { min-height: 3em; }
